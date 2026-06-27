@@ -401,6 +401,14 @@ export function mapEvents(rawEvents: any) {
   const evs: Raw[] = arrayFrom(rawEvents);
   return evs.slice(0, 200).map((e, i) => {
     const params = flattenParams(e);
+    // UniFi-specific derivations not covered by the generic flattener
+    if (Array.isArray(e.updates) && !params.count) params.count = String(e.updates.length);
+    if (e.meta && typeof e.meta === "object") {
+      const m: any = e.meta;
+      if (!params.object) params.object = String(m.display_property_value ?? m.collection ?? m.id ?? "");
+      if (!params.section) params.section = String(m.section ?? "");
+    }
+    if (!params.setting_name && e.change_key) params.setting_name = String(e.change_key);
     const slMsg = str(
       e.message ?? e.readable_message ?? e.eventStringFormatted ?? e.text
         ?? (Array.isArray(e.messageEnums) ? e.messageEnums.join(" ") : ""),
@@ -408,6 +416,7 @@ export function mapEvents(rawEvents: any) {
     const key = str(e.key ?? e.event ?? e.type ?? e.subsystem ?? e.category ?? e.__category ?? "");
     const rawMsg = slMsg || str(e.msg ?? e.description ?? e.name ?? "");
     const msg = substituteTemplate(rawMsg, params);
+
     const cat = str(e.__category ?? "");
     let kind: "admin" | "wan" | "firmware" | "client" | "system" = "system";
     const haystack = `${cat} ${key} ${msg}`;
