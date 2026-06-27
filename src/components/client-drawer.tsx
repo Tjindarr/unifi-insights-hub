@@ -39,9 +39,25 @@ export function ClientDrawer({ id, onClose }: { id: string | null; onClose: () =
   const fwList = liveFw?.length ? liveFw : mockFwEvents;
   const client = id ? clientList.find((c) => c.id === id || c.mac?.toLowerCase() === id.toLowerCase()) : null;
   const open = !!client;
-  const history = client ? clientHistory[client.id] ?? [] : [];
+  const isLive = !!liveClients?.length;
+  const mockHist = client && !isLive ? clientHistory[client.id] ?? [] : [];
   const dpi = client ? clientDpi[client.id] ?? [] : [];
   const fwEvents = client ? fwList.filter((e) => e.clientMac?.toLowerCase() === client?.mac?.toLowerCase()).slice(0, 12) : [];
+
+  // Live throughput ring-buffer: sample current rx/tx rate every time the
+  // useClients poll refreshes while the drawer is open.
+  const [liveHist, setLiveHist] = useState<{ t: number; rx: number; tx: number }[]>([]);
+  useEffect(() => { setLiveHist([]); }, [client?.id]);
+  useEffect(() => {
+    if (!client || !isLive) return;
+    setLiveHist((prev) => {
+      const t = Date.now();
+      if (prev.length && t - prev[prev.length - 1].t < 1000) return prev;
+      const next = [...prev, { t, rx: client.rxRate ?? 0, tx: client.txRate ?? 0 }];
+      return next.length > 120 ? next.slice(-120) : next;
+    });
+  }, [client, isLive]);
+  const history = isLive ? liveHist.map((s) => ({ time: s.t, rx: s.rx, tx: s.tx })) : mockHist;
 
   const [details, setDetails] = useState<ClientDetails | null>(null);
   useEffect(() => {
