@@ -28,10 +28,15 @@ export type NoiseFilterSettings = {
   patterns: string[];
 };
 
+export type ThreatIntelSettings = {
+  abuseIpdbKey: string;
+};
+
 export type AppConfig = {
   unifi: UnifiSettings;
   retention: RetentionSettings;
   noiseFilter: NoiseFilterSettings;
+  threatIntel: ThreatIntelSettings;
   sessionSecret: string;
 };
 
