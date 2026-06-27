@@ -30,7 +30,12 @@ export type NoiseFilterSettings = {
 
 export type ThreatIntelSettings = {
   abuseIpdbKey: string;
+  /** Map of feed id -> enabled. Missing keys fall back to the feed's default. */
+  feeds: Record<string, boolean>;
+  /** When true, fall back to AbuseIPDB /check for IPs not found in any feed. */
+  checkOnMiss: boolean;
 };
+
 
 export type AppConfig = {
   unifi: UnifiSettings;
@@ -70,20 +75,38 @@ function defaults(): AppConfig {
     },
     threatIntel: {
       abuseIpdbKey: env("ABUSEIPDB_KEY", env("ABUSEIPDB_API_KEY", "")) ?? "",
+      // Defaults: AbuseIPDB blacklist (needs key), FireHOL L1, Spamhaus DROP.
+      feeds: {
+        abuseipdb_blacklist: true,
+        firehol_level1: true,
+        spamhaus_drop: true,
+        spamhaus_edrop: false,
+        et_compromised: false,
+        blocklist_de: false,
+        cins_army: false,
+      },
+      checkOnMiss: true,
     },
+
     sessionSecret: env("SESSION_SECRET", "") ?? "",
   };
 }
 
 function merge(base: AppConfig, patch: Partial<AppConfig>): AppConfig {
+  const pt = patch.threatIntel;
   return {
     unifi: { ...base.unifi, ...(patch.unifi ?? {}) },
     retention: { ...base.retention, ...(patch.retention ?? {}) },
     noiseFilter: { ...base.noiseFilter, ...(patch.noiseFilter ?? {}) },
-    threatIntel: { ...base.threatIntel, ...(patch.threatIntel ?? {}) },
+    threatIntel: {
+      ...base.threatIntel,
+      ...(pt ?? {}),
+      feeds: { ...base.threatIntel.feeds, ...(pt?.feeds ?? {}) },
+    },
     sessionSecret: patch.sessionSecret || base.sessionSecret,
   };
 }
+
 
 export class ConfigStore {
   private cfg: AppConfig;
@@ -126,6 +149,8 @@ export class ConfigStore {
       noiseFilter: { ...this.cfg.noiseFilter },
       threatIntel: {
         hasAbuseIpdbKey: !!this.cfg.threatIntel.abuseIpdbKey,
+        feeds: { ...this.cfg.threatIntel.feeds },
+        checkOnMiss: this.cfg.threatIntel.checkOnMiss,
       },
     };
   }
