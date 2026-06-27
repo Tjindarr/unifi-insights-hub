@@ -106,6 +106,13 @@ function InternalPage() {
     () => byBucket.reduce((s, r) => s + CHART_SERIES.reduce((a, c) => a + (Number(r[c.key]) || 0), 0), 0),
     [byBucket],
   );
+  const chartCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const row of byBucket) {
+      for (const s of CHART_SERIES) c[s.key] = (c[s.key] ?? 0) + (Number(row[s.key]) || 0);
+    }
+    return c;
+  }, [byBucket]);
 
   return (
     <div>
@@ -206,7 +213,7 @@ function InternalPage() {
               <span key={s.key} className="inline-flex items-center gap-1.5">
                 <span className="inline-block h-2 w-2 rounded-sm" style={{ background: s.color }} />
                 {s.label}
-                <span className="tabular-nums">({counts[s.key] ?? 0})</span>
+                <span className="tabular-nums">({chartCounts[s.key] ?? 0})</span>
               </span>
             ))}
           </div>
