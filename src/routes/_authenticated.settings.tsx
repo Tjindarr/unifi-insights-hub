@@ -27,6 +27,7 @@ type Settings = {
     intervalMin: number;
     vacuumHours: number;
   };
+  noiseFilter: { enabled: boolean; action: "drop" | "downgrade"; patterns: string[] };
   unifiStatus?: UnifiStatus;
 };
 
