@@ -135,8 +135,10 @@ function OverviewPage() {
                 </li>
               ))}
             </ul>
-          </div>
         </div>
+
+        <ParsingHealth windowMin={60} />
+      </div>
       </div>
 
       <ClientDrawer id={focus} onClose={() => setFocus(null)} />
