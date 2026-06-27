@@ -407,7 +407,14 @@ export function mapDpi(rawDpi: any) {
   // { mac, by_app: [...] } (stadpi). Aggregate across all by_app/app entries.
   // Aggregate across all by_app entries by app id.
   const agg = new Map<string, { name: string; category: string; rx: number; tx: number }>();
+  const catAgg = new Map<string, number>();
   for (const item of arr) {
+    const cats: Raw[] = Array.isArray(item?.by_cat) ? item.by_cat : [];
+    for (const c of cats) {
+      const category = str(c.cat_name ?? c.category ?? DPI_CAT[num(c.cat)] ?? `Cat ${c.cat ?? "?"}`);
+      const total = num(c.rx_bytes ?? c.rxBytes ?? c.bytes_rx ?? c.rx) + num(c.tx_bytes ?? c.txBytes ?? c.bytes_tx ?? c.tx);
+      catAgg.set(category, (catAgg.get(category) ?? 0) + total);
+    }
     const list: Raw[] = Array.isArray(item?.by_app)
       ? item.by_app
       : Array.isArray(item?.apps)
@@ -427,18 +434,14 @@ export function mapDpi(rawDpi: any) {
       prev.rx += num(a.rx_bytes ?? a.rxBytes ?? a.rx_bytes_r ?? a.bytes_rx ?? a.rx);
       prev.tx += num(a.tx_bytes ?? a.txBytes ?? a.tx_bytes_r ?? a.bytes_tx ?? a.tx);
       agg.set(key, prev);
+      catAgg.set(prev.category, (catAgg.get(prev.category) ?? 0) + prev.rx + prev.tx);
     }
   }
   const top = [...agg.values()]
     .filter((a) => a.rx + a.tx > 0)
     .sort((a, b) => b.rx + b.tx - a.rx - a.tx)
     .slice(0, 30);
-  const byCat = Object.entries(
-    top.reduce<Record<string, number>>((acc, a) => {
-      acc[a.category] = (acc[a.category] ?? 0) + a.rx + a.tx;
-      return acc;
-    }, {}),
-  )
+  const byCat = [...catAgg.entries()]
     .map(([category, total]) => ({ category, total }))
     .sort((a, b) => b.total - a.total);
   return { apps: top, byCategory: byCat };
