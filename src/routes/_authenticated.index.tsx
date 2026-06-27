@@ -10,6 +10,7 @@ import { DemoBadge } from "@/components/demo-badge";
 import { useEvents, useOverview, useWanThroughput } from "@/lib/live";
 import { formatBits, formatBytes, formatRate, formatTime, relativeTime } from "@/lib/format";
 import { ClientDrawer } from "@/components/client-drawer";
+import { ParsingHealth } from "@/components/parsing-health";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/")({
