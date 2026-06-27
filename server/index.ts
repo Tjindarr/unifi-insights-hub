@@ -67,6 +67,18 @@ udp.on("message", (buf, rinfo) => {
   const line = buf.toString("utf8");
   try {
     const parsed = parseSyslog(line, rinfo.address);
+
+    // Noise filter — drop or downgrade chatty patterns before they hit the DB.
+    const decision = applyNoiseFilter(parsed, config.get().noiseFilter);
+    if (decision.drop) {
+      counters.dropped++;
+      return;
+    }
+    if (decision.downgradeTo) {
+      parsed.severity = decision.downgradeTo;
+      counters.downgraded++;
+    }
+
     const info = insertSyslog.run({
       time: parsed.time,
       host: parsed.host,
@@ -98,6 +110,13 @@ udp.on("message", (buf, rinfo) => {
         reason: fw.reason,
         raw_json: fw.raw_json,
       });
+    }
+
+    // Enrichments: MAC↔IP, DHCP leases, Wi-Fi auth events
+    const enr = extractEnrichments(parsed);
+    if (enr.staIp || enr.dhcp || enr.wifiAuth) {
+      enrichers.apply(parsed, enr);
+      counters.enriched++;
     }
 
     if (wsClients.size) {
