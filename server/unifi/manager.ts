@@ -95,12 +95,16 @@ export class UnifiManager {
       setSnapshot(this.db, "unifi_devices_snapshot", unwrap(devices));
       setSnapshot(this.db, "unifi_health_snapshot", unwrap(health));
 
-      const [events, dpi] = await Promise.all([
+      const [events, dpi, speedtest] = await Promise.all([
         tryCall("events", () => this.client!.events()),
         tryCall("dpi", () => this.client!.dpi()),
+        tryCall("speedtest", () => this.client!.speedtest()),
       ]);
       if (events) setSnapshot(this.db, "unifi_events_snapshot", unwrap(events));
       if (dpi) setSnapshot(this.db, "unifi_dpi_snapshot", unwrap(dpi));
+      if (speedtest && Array.isArray(speedtest.data) && speedtest.data.length > 0) {
+        setSnapshot(this.db, "unifi_speedtest_snapshot", speedtest.data);
+      }
 
       // Refresh DPI catalog (id → name) at most once per hour.
       if (Date.now() - this.catalogLastFetch > 60 * 60 * 1000) {
