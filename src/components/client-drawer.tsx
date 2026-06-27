@@ -5,8 +5,9 @@ import { ArrowDown, ArrowUp, Cable, ShieldAlert, Wifi, X } from "lucide-react";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
-import { clients, firewallEvents } from "@/lib/mock-data";
+import { clients as mockClientsList, firewallEvents as mockFwEvents } from "@/lib/mock-data";
 import { clientHistory, clientDpi } from "@/lib/mock-extra";
+import { useClients, useFirewall } from "@/lib/live";
 import { formatBits, formatBytes, formatTime, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
