@@ -1,0 +1,21 @@
+services:
+  unifi-dashboard:
+    build: .
+    image: unifi-dashboard:latest
+    container_name: unifi-dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000/tcp"      # web UI
+      - "514:514/udp"        # syslog (point your UniFi devices here)
+    volumes:
+      - /mnt/user/appdata/unifi-dashboard:/data
+    environment:
+      UNIFI_HOST: 192.168.1.1
+      UNIFI_USER: readonly
+      UNIFI_PASSWORD: change-me
+      UNIFI_SITE: default
+      DASH_USER: admin
+      DASH_PASSWORD: change-me-too
+      # Generate with: openssl rand -hex 32
+      SESSION_SECRET: replace-with-32-plus-random-chars-please-please
+      RETENTION_DAYS: "30"
