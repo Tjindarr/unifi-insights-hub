@@ -193,9 +193,9 @@ export function mapOverview(rawClients: any, rawDevices: any, _rawHealth: any) {
     wired,
     wireless,
     avgSatisfaction: avgSat,
-    // Convert bytes/sec → bits/sec for the WAN tiles (formatBits expects bps).
-    currentRx: Math.floor(totalRx * 8),
-    currentTx: Math.floor(totalTx * 8),
+    // Keep bytes/sec — formatBits() on the frontend multiplies by 8.
+    currentRx: Math.floor(totalRx),
+    currentTx: Math.floor(totalTx),
     topTalkers,
   };
 }
