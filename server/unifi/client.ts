@@ -279,33 +279,45 @@ export class UnifiClient {
    * we also try the daily/hourly site report as a fallback. Values are returned
    * as-is from the controller (xput_download / xput_upload in Mbps, latency ms).
    */
-  async speedtest(days = 14): Promise<{ data: any[]; source: string | null }> {
+  async speedtest(days = 30): Promise<{ data: any[]; source: string | null; attempts: Array<{ label: string; ok: boolean; count: number; error?: string }> }> {
     const site = this.cfg.site;
     const end = Date.now();
     const start = end - days * 86_400_000;
-    const attrs = "time,xput_download,xput_upload,latency";
+    const attrs = ["time", "xput_download", "xput_upload", "latency"];
     const attempts: Array<[string, () => Promise<any>]> = [
-      ["archive.speedtest", () => this.call(
-        `/proxy/network/api/s/${site}/stat/report/archive.speedtest?attrs=${attrs}&start=${start}&end=${end}`,
+      ["archive.speedtest.post", () => this.call(
+        `/proxy/network/api/s/${site}/stat/report/archive.speedtest`,
+        { attrs, start, end },
       )],
       ["daily.site.speedtest", () => this.call(
         `/proxy/network/api/s/${site}/stat/report/daily.site`,
-        { attrs: attrs.split(","), start, end },
+        { attrs, start, end },
       )],
       ["hourly.site.speedtest", () => this.call(
         `/proxy/network/api/s/${site}/stat/report/hourly.site`,
-        { attrs: attrs.split(","), start, end },
+        { attrs, start, end },
+      )],
+      ["archive.speedtest.get", () => this.call(
+        `/proxy/network/api/s/${site}/stat/report/archive.speedtest?attrs=${attrs.join(",")}&start=${start}&end=${end}`,
+      )],
+      ["v2.speedtest", () => this.call(
+        `/proxy/network/v2/api/site/${site}/speedtest?start=${start}&end=${end}`,
       )],
     ];
+    const probe: Array<{ label: string; ok: boolean; count: number; error?: string }> = [];
+    let best: { data: any[]; source: string } = { data: [], source: "" };
     for (const [label, fn] of attempts) {
       try {
         const r: any = await fn();
         const data: any[] = Array.isArray(r?.data) ? r.data : Array.isArray(r) ? r : [];
-        const filtered = data.filter((x) => x && (x.xput_download != null || x.xput_up != null));
-        if (filtered.length > 0) return { data: filtered, source: label };
-      } catch {}
+        const filtered = data.filter((x) => x && (x.xput_download != null || x.xput_up != null || x.xput_upload != null || x.download != null));
+        probe.push({ label, ok: true, count: filtered.length });
+        if (filtered.length > best.data.length) best = { data: filtered, source: label };
+      } catch (e) {
+        probe.push({ label, ok: false, count: 0, error: e instanceof Error ? e.message : String(e) });
+      }
     }
-    return { data: [], source: null };
+    return { data: best.data, source: best.source || null, attempts: probe };
   }
 }
 

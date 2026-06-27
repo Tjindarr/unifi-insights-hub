@@ -324,6 +324,16 @@ export async function registerApi(
     return { ok: true, count: list.length, sample: list.slice(0, 2) };
   });
 
+  app.get("/api/_debug/raw-speedtest", async () => {
+    const raw = snap("unifi_speedtest_snapshot") as any;
+    const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+    const { mapSpeedtests } = await import("../unifi/mappers.ts");
+    const probe = await unifi.speedtestProbe();
+    return { ok: true, count: list.length, sample: list.slice(0, 3), mapped: mapSpeedtests(list).slice(0, 3), probe };
+  });
+
+
+
   // Dump raw DPI/traffic snapshot and mapped output for diagnosing empty Apps/DPI.
   app.get("/api/_debug/raw-dpi", async () => {
     const raw = snap("unifi_dpi_snapshot") as any;

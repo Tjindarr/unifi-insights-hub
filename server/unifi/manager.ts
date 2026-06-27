@@ -44,6 +44,11 @@ export class UnifiManager {
     return { ok: true, ...(await this.client.dpiCatalog()) };
   }
 
+  async speedtestProbe() {
+    if (!this.client) return { ok: false, error: "poller not running" };
+    return { ok: true, ...(await this.client.speedtest()) };
+  }
+
   apply(cfg: { enabled: boolean; host: string; user: string; password: string; site: string }) {
     this.stop();
     const configured = !!(cfg.host && cfg.user && cfg.password);
@@ -102,7 +107,9 @@ export class UnifiManager {
       ]);
       if (events) setSnapshot(this.db, "unifi_events_snapshot", unwrap(events));
       if (dpi) setSnapshot(this.db, "unifi_dpi_snapshot", unwrap(dpi));
-      if (speedtest && Array.isArray(speedtest.data) && speedtest.data.length > 0) {
+      if (speedtest && Array.isArray(speedtest.data)) {
+        // Always store (even empty array) so the UI doesn't keep stale rows,
+        // and so /api/_debug/raw-speedtest reflects current state.
         setSnapshot(this.db, "unifi_speedtest_snapshot", speedtest.data);
       }
 
