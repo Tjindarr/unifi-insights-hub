@@ -127,6 +127,7 @@ udp.on("message", (buf, rinfo) => {
         reason: fw.reason,
         raw_json: fw.raw_json,
       });
+      invalidateBucketCache();
     }
 
     // Enrichments: MAC↔IP, DHCP leases, Wi-Fi auth events
