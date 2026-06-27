@@ -75,7 +75,19 @@ function defaults(): AppConfig {
     },
     threatIntel: {
       abuseIpdbKey: env("ABUSEIPDB_KEY", env("ABUSEIPDB_API_KEY", "")) ?? "",
+      // Defaults: AbuseIPDB blacklist (needs key), FireHOL L1, Spamhaus DROP.
+      feeds: {
+        abuseipdb_blacklist: true,
+        firehol_level1: true,
+        spamhaus_drop: true,
+        spamhaus_edrop: false,
+        et_compromised: false,
+        blocklist_de: false,
+        cins_army: false,
+      },
+      checkOnMiss: true,
     },
+
     sessionSecret: env("SESSION_SECRET", "") ?? "",
   };
 }
