@@ -226,6 +226,34 @@ export function mapPorts(rawDevices: any): MappedPort[] {
     for (const p of ports) {
       const up = !!(p.up ?? p.enable);
       const link: MappedPort["link"] = p.enable === false ? "disabled" : up ? "up" : "down";
+
+      // PoE: UniFi reports `poe_power` as string watts; some firmwares use
+      // `poe_wattage` or nest under stats. `poe_caps` is a bitmask, not max W.
+      const poeW = Number(p.poe_power ?? p.poe_wattage ?? p.stats?.poe_power ?? 0) || 0;
+      const poeMax =
+        Number(p.poe_max ?? p.poe_max_power ?? p.poe_caps_w ?? 0) ||
+        (poeW > 60 ? 90 : poeW > 30 ? 60 : 30);
+
+      // Errors: try port-level then nested stats.
+      const rxErr = Number(p.rx_errors ?? p.stats?.rx_errors ?? p.rx_dropped ?? 0) || 0;
+      const txErr = Number(p.tx_errors ?? p.stats?.tx_errors ?? p.tx_dropped ?? 0) || 0;
+
+      // LLDP neighbour — can be array or object depending on firmware.
+      const lldp: any = Array.isArray(p.lldp_info) ? p.lldp_info[0] : p.lldp_info;
+      const neighbor =
+        lldp?.system_name ||
+        lldp?.chassis_id ||
+        p.lldp_system_name ||
+        p.lldp_chassis_id ||
+        undefined;
+
+      // Client count: prefer mac_table length, fall back to num_sta/num_port.
+      const macTable: any[] = Array.isArray(p.mac_table) ? p.mac_table : [];
+      const clientCount =
+        macTable.length ||
+        Number(p.num_sta ?? p.num_port ?? p.attr_num_sta ?? 0) ||
+        0;
+
       out.push({
         id: num(p.port_idx ?? p.port_number),
         device: devName,
@@ -233,12 +261,12 @@ export function mapPorts(rawDevices: any): MappedPort[] {
         link,
         speed: num(p.speed),
         duplex: p.full_duplex ? "full" : link === "up" ? "half" : "—",
-        poe: num(p.poe_power),
-        poeMax: num(p.poe_caps ?? p.poe_max ?? 30, 30),
-        rxErr: num(p.rx_errors),
-        txErr: num(p.tx_errors),
-        neighbor: p.lldp_info?.chassis_id ?? p.lldp_info?.system_name ?? undefined,
-        clientCount: num(p.num_sta),
+        poe: poeW,
+        poeMax,
+        rxErr,
+        txErr,
+        neighbor,
+        clientCount,
       });
     }
   }
