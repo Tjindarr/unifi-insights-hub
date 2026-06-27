@@ -11,6 +11,8 @@ RUN npm install --no-audit --no-fund
 COPY . .
 RUN npm run build
 
+
+
 FROM node:22-alpine AS server
 WORKDIR /app
 # wget is used by the HEALTHCHECK; sqlite for ad-hoc debugging from `docker exec`.
