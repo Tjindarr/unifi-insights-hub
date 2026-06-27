@@ -10,10 +10,33 @@ export type DB = ReturnType<typeof openDb>;
 export function openDb(path: string) {
   const db = new Database(path);
   db.pragma("journal_mode = WAL");
+  db.pragma("synchronous = NORMAL");
+  db.pragma("temp_store = MEMORY");
+  db.pragma("mmap_size = 268435456");
+  db.pragma("cache_size = -65536"); // ~64 MiB page cache
   db.pragma("foreign_keys = ON");
   const schema = readFileSync(join(here, "schema.sql"), "utf8");
   db.exec(schema);
+  // Refresh planner stats so partial / composite indexes are picked up.
+  try { db.exec("ANALYZE"); } catch { /* best-effort */ }
   return db;
+}
+
+// ---- Bucket aggregation cache --------------------------------------------
+// Charts on the dashboard refetch every 15s across multiple clients. The
+// aggregation itself is cheap with indexes, but caching the last result for a
+// few seconds collapses N concurrent requests into a single SQL pass.
+
+type BucketRow = { t: number; success: number; failure: number };
+const bucketCache = new Map<string, { at: number; rows: BucketRow[] }>();
+const BUCKET_CACHE_TTL_MS = 5_000;
+let bucketCacheVersion = 0;
+
+/** Call after every batch of firewall_events inserts so the next bucket
+ *  request recomputes instead of serving a stale cached aggregation. */
+export function invalidateBucketCache() {
+  bucketCacheVersion++;
+  if (bucketCache.size > 32) bucketCache.clear();
 }
 
 export function pruneOlderThan(db: Database.Database, days: number) {
