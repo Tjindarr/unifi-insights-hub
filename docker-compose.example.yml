@@ -11,6 +11,10 @@ services:
     # ports:
     #   - "8095:8095/tcp"
     #   - "514:514/udp"
+    environment:
+      # Set this to match your router's timezone so syslog timestamps
+      # (which UniFi sends without a TZ) display correctly.
+      - TZ=Europe/Stockholm
     volumes:
       # Holds the SQLite DB AND config.json (UniFi credentials, retention,
       # auto-generated session secret). Survives image updates.
