@@ -16,7 +16,7 @@ import { CommandPalette } from "@/components/command-palette";
 
 type NavItem = {
   to: "/" | "/clients" | "/network" | "/wan" | "/topology" | "/dpi" | "/ports"
-    | "/firewall" | "/events" | "/logs" | "/raw" | "/settings";
+    | "/firewall" | "/internal" | "/events" | "/logs" | "/raw" | "/settings";
 
   label: string;
   icon: typeof LayoutDashboard;
@@ -33,6 +33,7 @@ const nav: NavItem[] = [
   { to: "/topology", label: "Topology", icon: Network,                       group: "Network" },
   { to: "/ports",    label: "Ports",    icon: Plug,                          group: "Network" },
   { to: "/firewall", label: "Firewall", icon: Flame,                         group: "Security" },
+  { to: "/internal", label: "Internal", icon: Radio,                         group: "Security" },
   { to: "/events",   label: "Events",   icon: AlertCircle,                   group: "Security" },
   { to: "/logs",     label: "Logs",     icon: ScrollText,                    group: "Security" },
   { to: "/raw",      label: "Raw syslog", icon: FileText,                    group: "Security" },
