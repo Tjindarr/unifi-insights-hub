@@ -273,6 +273,41 @@ export class UnifiClient {
     }
     return { apps, categories, sources };
   }
+
+  /**
+   * Speedtest history. UniFi stores results under stat/report archive.speedtest;
+   * we also try the daily/hourly site report as a fallback. Values are returned
+   * as-is from the controller (xput_download / xput_upload in Mbps, latency ms).
+   */
+  async speedtest(days = 14): Promise<{ data: any[]; source: string | null }> {
+    const site = this.cfg.site;
+    const end = Date.now();
+    const start = end - days * 86_400_000;
+    const attrs = "time,xput_download,xput_upload,latency";
+    const attempts: Array<[string, () => Promise<any>]> = [
+      ["archive.speedtest", () => this.call(
+        `/proxy/network/api/s/${site}/stat/report/archive.speedtest?attrs=${attrs}&start=${start}&end=${end}`,
+      )],
+      ["daily.site.speedtest", () => this.call(
+        `/proxy/network/api/s/${site}/stat/report/daily.site`,
+        { attrs: attrs.split(","), start, end },
+      )],
+      ["hourly.site.speedtest", () => this.call(
+        `/proxy/network/api/s/${site}/stat/report/hourly.site`,
+        { attrs: attrs.split(","), start, end },
+      )],
+    ];
+    for (const [label, fn] of attempts) {
+      try {
+        const r: any = await fn();
+        const data: any[] = Array.isArray(r?.data) ? r.data : Array.isArray(r) ? r : [];
+        const filtered = data.filter((x) => x && (x.xput_download != null || x.xput_up != null));
+        if (filtered.length > 0) return { data: filtered, source: label };
+      } catch {}
+    }
+    return { data: [], source: null };
+  }
 }
+
 
 
