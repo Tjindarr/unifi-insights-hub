@@ -180,7 +180,7 @@ function FirewallPage() {
         title="Firewall"
         description={`${rows.length} events · ${stats.failures} failures · ${stats.uniqueClients} clients · ${stats.external} internet`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end max-w-[760px]">
             <DemoBadge isLive={isLive} />
 
             <button onClick={() => exportNdjson("firewall", rows)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60">
@@ -207,13 +207,39 @@ function FirewallPage() {
               ))}
             </div>
             <div className="flex rounded-md border border-border overflow-hidden text-xs">
-              {(["all", "failure", "success"] as const).map((f) => (
+              {(["all", "allow", "block", "drop", "failure", "success"] as const).map((f) => (
                 <button key={f} onClick={() => setAction(f)} className={cn("px-2.5 py-1.5 capitalize", action === f ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-secondary/60")}>{f}</button>
               ))}
             </div>
+            <select
+              value={threat}
+              onChange={(e) => setThreat(e.target.value as ThreatFilter)}
+              className="h-8 rounded-md border border-border bg-card px-2 text-xs"
+              title="Filter by AbuseIPDB threat tier"
+            >
+              <option value="all">Threat: any</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+              <option value="clean">Clean</option>
+              <option value="unknown">Unknown</option>
+            </select>
+            <select
+              value={proto}
+              onChange={(e) => setProto(e.target.value as typeof proto)}
+              className="h-8 rounded-md border border-border bg-card px-2 text-xs"
+            >
+              <option value="all">Proto: any</option>
+              <option value="tcp">TCP</option>
+              <option value="udp">UDP</option>
+              <option value="icmp">ICMP</option>
+            </select>
+            <Input placeholder="Source IP" value={srcQ} onChange={(e) => setSrcQ(e.target.value)} className="h-8 w-32" />
+            <Input placeholder="Dest IP" value={dstQ} onChange={(e) => setDstQ(e.target.value)} className="h-8 w-32" />
+            <Input placeholder="Port" value={portQ} onChange={(e) => setPortQ(e.target.value)} className="h-8 w-20" />
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="rule, MAC, IP, VAP…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-7 h-8 w-72" />
+              <Input placeholder="rule, MAC, IP, VAP…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-7 h-8 w-56" />
             </div>
           </div>
         }
