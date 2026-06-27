@@ -44,6 +44,11 @@ export class UnifiManager {
     return { ok: true, ...(await this.client.dpiCatalog()) };
   }
 
+  async speedtestProbe() {
+    if (!this.client) return { ok: false, error: "poller not running" };
+    return { ok: true, ...(await this.client.speedtest()) };
+  }
+
   apply(cfg: { enabled: boolean; host: string; user: string; password: string; site: string }) {
     this.stop();
     const configured = !!(cfg.host && cfg.user && cfg.password);
