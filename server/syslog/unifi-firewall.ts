@@ -78,6 +78,15 @@ export function extractFirewall(message: string, appname: string): FirewallField
       result.rule = `${unifiTag[1]}-${id}`;
       result.action = code === "A" ? "allow" : code === "R" ? "reject" : "deny";
     }
+
+    // Friendly rule name from DESCR="[CHAIN]Rule Name" — prefer it over the numeric ID
+    const descr = message.match(/\bDESCR="([^"]+)"/)?.[1];
+    if (descr) {
+      // Strip the leading [CHAIN] prefix that duplicates the tag
+      const cleaned = descr.replace(/^\[[^\]]+]\s*/, "").trim();
+      if (cleaned) result.rule = cleaned;
+    }
+
     result.src_ip = message.match(/\bSRC=([^\s]+)/)?.[1] ?? null;
     result.dst_ip = message.match(/\bDST=([^\s]+)/)?.[1] ?? null;
     const spt = message.match(/\bSPT=(\d+)/)?.[1];
@@ -85,9 +94,27 @@ export function extractFirewall(message: string, appname: string): FirewallField
     result.src_port = spt ? Number(spt) : null;
     result.dst_port = dpt ? Number(dpt) : null;
     result.proto = message.match(/\bPROTO=(\w+)/)?.[1] ?? null;
+
+    // Extract client MAC from the iptables MAC= field.
+    // Format: <dstMAC 6B>:<srcMAC 6B>:<ethertype 2B>, hex bytes separated by ":".
+    // For LAN → WAN (IN=br0) the SOURCE half is the client.
+    // For WAN → LOCAL (IN=eth3) the source is upstream, so we keep null.
+    const macField = message.match(/\bMAC=([0-9a-f:]+)/i)?.[1];
+    const inIface = message.match(/\bIN=([^\s]+)/)?.[1] ?? "";
+    if (macField) {
+      const parts = macField.split(":");
+      if (parts.length >= 14 && /^br|^lan|^eth[0-2]/i.test(inIface)) {
+        // bytes 7..12 (0-indexed 6..11) = source MAC
+        result.client_mac = parts.slice(6, 12).join(":").toLowerCase();
+      }
+    }
+
     result.raw_json = JSON.stringify({
       src: result.src_ip, dst: result.dst_ip, spt: result.src_port, dpt: result.dst_port,
       proto: result.proto, rule: result.rule, action: result.action,
+      descr: descr ?? null, in: inIface || null,
+      out: message.match(/\bOUT=([^\s]+)/)?.[1] ?? null,
+      client_mac: result.client_mac,
     });
     return result;
   }
