@@ -4,10 +4,10 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { Download, Save, Search, Star, X } from "lucide-react";
 
 import { PageHeader, SeverityDot } from "@/components/app-shell";
+import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
-import { syslog } from "@/lib/mock-data";
 import type { Severity, SyslogEntry } from "@/lib/mock-data";
-import { syslogByMinute } from "@/lib/mock-extra";
+import { useSyslog, useSyslogByMinute } from "@/lib/live";
 import { formatDateTime, formatTime } from "@/lib/format";
 import { exportNdjson } from "@/lib/export";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ export const Route = createFileRoute("/_authenticated/logs")({
   head: () => ({ meta: [{ title: "Logs — UniFi Dashboard" }] }),
   component: LogsPage,
 });
+
 
 const SEVERITIES: Severity[] = ["info", "notice", "warn", "error", "critical"];
 const SAVED_KEY = "logs-saved-searches";
