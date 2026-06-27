@@ -107,7 +107,7 @@ function OverviewPage() {
                         <div className="flex items-center gap-4 text-xs tabular-nums whitespace-nowrap">
                           <span className="text-rx flex items-center gap-1"><ArrowDown className="h-3 w-3" />{formatBits(c.rxRate)}</span>
                           <span className="text-tx flex items-center gap-1"><ArrowUp className="h-3 w-3" />{formatBits(c.txRate)}</span>
-                          <span className="text-muted-foreground w-20 text-right">{formatBytes(c.rxBytes + c.txBytes)}</span>
+                          <span className="text-muted-foreground w-20 text-right">{formatBytes(c.rxBytes)}</span>
                         </div>
                       </div>
                     </button>
