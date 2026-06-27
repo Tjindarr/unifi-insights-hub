@@ -6,6 +6,7 @@
 // also expose `isLive` so pages can show a "Demo data" badge.
 
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import {
   clients as mockClients,
@@ -126,12 +127,12 @@ type FwRow = {
   raw_json: string | null;
 };
 
-function normFw(rows: FwRow[]): FirewallEvent[] {
-  const macToName = new Map(mockClients.map((c) => [c.mac, c.hostname]));
+function normFw(rows: FwRow[], macToName: Map<string, string>): FirewallEvent[] {
   return rows.map((r) => {
     let raw: Record<string, unknown> = {};
     try { raw = r.raw_json ? JSON.parse(r.raw_json) : {}; } catch { /* */ }
     const severity: Severity = r.action === "failure" ? "warn" : r.action === "drop" || r.action === "deny" ? "error" : "info";
+    const macKey = r.client_mac?.toLowerCase();
     return {
       id: `fw${r.id}`,
       time: new Date(r.time).toISOString(),
@@ -140,7 +141,7 @@ function normFw(rows: FwRow[]): FirewallEvent[] {
       eventType: r.event_type ?? "",
       messageType: r.message_type ?? "",
       clientMac: r.client_mac ?? undefined,
-      clientName: r.client_mac ? macToName.get(r.client_mac) : undefined,
+      clientName: macKey ? macToName.get(macKey) : undefined,
       srcIp: r.src_ip ?? undefined,
       srcPort: r.src_port ?? undefined,
       dstIp: r.dst_ip ?? undefined,
@@ -156,13 +157,33 @@ function normFw(rows: FwRow[]): FirewallEvent[] {
 }
 
 export function useFirewall(): Live<FirewallEvent[]> {
+  const { data: clients } = useClients();
   const { data, isLive, loading } = useLive<FwRow[] | FirewallEvent[]>(
     "firewall",
     () => getJson<FwRow[]>("/api/firewall?limit=500"),
     // Use marker so we know to skip normalize
     mockFw as unknown as FwRow[],
   );
-  const normalized = isLive ? normFw(data as FwRow[]) : (data as FirewallEvent[]);
+  const macToName = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of clients) {
+      if (!c.mac) continue;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const anyC = c as any;
+      const name =
+        anyC.alias ||
+        anyC.name ||
+        anyC.hostname ||
+        anyC.dhcp_hostname ||
+        anyC.dhcpHostname ||
+        anyC.dns ||
+        anyC.fingerprint?.name ||
+        null;
+      if (name) m.set(String(c.mac).toLowerCase(), String(name));
+    }
+    return m;
+  }, [clients]);
+  const normalized = isLive ? normFw(data as FwRow[], macToName) : (data as FirewallEvent[]);
   return { data: normalized, isLive, loading };
 }
 
