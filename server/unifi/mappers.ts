@@ -230,6 +230,25 @@ export function mapPorts(rawDevices: any, rawClients?: any): MappedPort[] {
     const key = `${dev}:${portIdx}`;
     clientCounts.set(key, (clientCounts.get(key) ?? 0) + 1);
   }
+  // Build (uplinkDeviceMac, uplinkPortIdx) -> uplinked devices (APs/switches).
+  // APs aren't in the clients snapshot but should count toward the port's
+  // "Clients" column and provide a neighbor-name fallback.
+  const devUplinks = new Map<string, { count: number; names: string[] }>();
+  for (const d of devs) {
+    const u = d.uplink ?? {};
+    const upMac = String(
+      u.uplink_remote_mac ?? u.uplink_mac ?? u.gateway_mac ?? d.uplink_mac ?? "",
+    ).toLowerCase();
+    const upPort = Number(
+      u.uplink_remote_port ?? u.remote_port ?? u.uplink_port_idx ?? u.port_idx ?? 0,
+    );
+    if (!upMac || !upPort) continue;
+    const key = `${upMac}:${upPort}`;
+    const entry = devUplinks.get(key) ?? { count: 0, names: [] };
+    entry.count += 1;
+    entry.names.push(str(d.name ?? d.model ?? d.mac));
+    devUplinks.set(key, entry);
+  }
   for (const d of devs) {
     const devName = str(d.name ?? d.model ?? d.mac);
     const devMac = String(d.mac ?? "").toLowerCase();
@@ -273,16 +292,21 @@ export function mapPorts(rawDevices: any, rawClients?: any): MappedPort[] {
         p.lldp_chassis_id ||
         undefined;
 
-      // Client count: port mac_table, then device mac_table by port_idx, then clients snapshot.
+      // Client count: port mac_table, then device mac_table by port_idx, then clients snapshot,
+      // plus any uplinked APs/switches that pin to this port.
       const portMacTable: any[] = Array.isArray(p.mac_table) ? p.mac_table : [];
       const fromDevMac = devMacTable.filter((m) => Number(m.port_idx ?? m.sw_port) === idx).length;
       const fromClients = clientCounts.get(`${devMac}:${idx}`) ?? 0;
-      const clientCount =
+      const uplinked = devUplinks.get(`${devMac}:${idx}`);
+      const baseCount =
         portMacTable.length ||
         fromDevMac ||
         fromClients ||
         Number(p.num_sta ?? 0) ||
         0;
+      const clientCount = baseCount + (uplinked?.count ?? 0);
+
+      const neighborName = neighbor || (uplinked?.names.length ? uplinked.names.join(", ") : undefined);
 
       out.push({
         id: idx,
@@ -295,7 +319,7 @@ export function mapPorts(rawDevices: any, rawClients?: any): MappedPort[] {
         poeMax,
         rxErr,
         txErr,
-        neighbor,
+        neighbor: neighborName,
         clientCount,
       });
     }
