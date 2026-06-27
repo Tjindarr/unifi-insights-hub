@@ -66,4 +66,13 @@ export class UnifiClient {
   health() {
     return this.call(`/proxy/network/api/s/${this.cfg.site}/stat/health`);
   }
+  events() {
+    // Last 100 site events (admin actions, WAN flaps, firmware, etc.)
+    return this.call(`/proxy/network/api/s/${this.cfg.site}/stat/event?_limit=100`);
+  }
+  dpi() {
+    // Site-wide DPI aggregated by app + category
+    return this.call(`/proxy/network/api/s/${this.cfg.site}/stat/sitedpi?type=by_app`);
+  }
 }
+
