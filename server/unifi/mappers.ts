@@ -431,10 +431,12 @@ export function mapDpi(rawDpi: any) {
         rx: 0,
         tx: 0,
       };
-      prev.rx += num(a.rx_bytes ?? a.rxBytes ?? a.rx_bytes_r ?? a.bytes_rx ?? a.rx);
-      prev.tx += num(a.tx_bytes ?? a.txBytes ?? a.tx_bytes_r ?? a.bytes_tx ?? a.tx);
+      const rx = num(a.rx_bytes ?? a.rxBytes ?? a.rx_bytes_r ?? a.bytes_rx ?? a.rx);
+      const tx = num(a.tx_bytes ?? a.txBytes ?? a.tx_bytes_r ?? a.bytes_tx ?? a.tx);
+      prev.rx += rx;
+      prev.tx += tx;
       agg.set(key, prev);
-      catAgg.set(prev.category, (catAgg.get(prev.category) ?? 0) + prev.rx + prev.tx);
+      catAgg.set(prev.category, (catAgg.get(prev.category) ?? 0) + rx + tx);
     }
   }
   const top = [...agg.values()]
