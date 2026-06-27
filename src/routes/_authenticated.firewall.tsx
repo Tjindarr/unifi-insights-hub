@@ -131,17 +131,24 @@ function FirewallPage() {
   }, [tagged, q, srcQ, dstQ, portQ, proto, action, internetOnly]);
 
 
-  // Unique external IPs in the current filter — used to batch GeoIP/threat lookups.
+  // Unique external IPs in the prelim set — used to batch GeoIP/threat lookups.
   const externalIps = useMemo(() => {
     const s = new Set<string>();
-    for (const e of rows) {
-      const x = externalIp(e);
-      if (x) s.add(x);
-    }
+    for (const { ext } of prelim) if (ext) s.add(ext);
     return [...s];
-  }, [rows]);
+  }, [prelim]);
 
   const { data: ipInfo } = useIpInfo(externalIps);
+
+  // Second pass — applies threat-tier filter using the resolved IP info.
+  const rows = useMemo(() => {
+    if (threat === "all") return prelim.map((p) => p.event);
+    return prelim
+      .filter(({ ext }) => threatTier(ext ? ipInfo?.[ext]?.abuseScore : undefined) === threat)
+      .map((p) => p.event);
+  }, [prelim, ipInfo, threat]);
+
+
 
   const grouped = useMemo(() => {
     if (view === "list") return [];
