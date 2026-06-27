@@ -57,6 +57,9 @@ function SettingsPage() {
   const [noiseForm, setNoiseForm] = useState<{
     enabled: boolean; action: "drop" | "downgrade"; patternsText: string;
   }>({ enabled: true, action: "drop", patternsText: "" });
+  const [threatForm, setThreatForm] = useState({ abuseIpdbKey: "" });
+  const [savingThreat, setSavingThreat] = useState(false);
+  const [threatMsg, setThreatMsg] = useState<string | null>(null);
   const [savingUnifi, setSavingUnifi] = useState(false);
   const [savingRet, setSavingRet] = useState(false);
   const [savingNoise, setSavingNoise] = useState(false);
