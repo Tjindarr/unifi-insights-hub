@@ -171,6 +171,27 @@ function SettingsPage() {
     } finally { setBusy(false); }
   }
 
+  async function saveNoise() {
+    setSavingNoise(true); setNoiseMsg(null);
+    try {
+      const patterns = noiseForm.patternsText
+        .split("\n").map((s) => s.trim()).filter(Boolean);
+      const r = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          noiseFilter: { enabled: noiseForm.enabled, action: noiseForm.action, patterns },
+        }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const j = (await r.json()) as Settings;
+      setSettings(j);
+      setNoiseMsg("Saved. Applied to incoming syslog.");
+    } catch (err) {
+      setNoiseMsg("Save failed: " + (err instanceof Error ? err.message : String(err)));
+    } finally { setSavingNoise(false); }
+  }
+
   const status = settings?.unifiStatus;
 
   return (
