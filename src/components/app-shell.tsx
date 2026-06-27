@@ -1,7 +1,6 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
-  Cable,
   Flame,
   LayoutDashboard,
   LogOut,
