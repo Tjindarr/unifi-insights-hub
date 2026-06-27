@@ -440,14 +440,50 @@ export async function registerApi(
   });
 
   // ---- IP enrichment (GeoIP via ip-api.com; threat via AbuseIPDB if key set) ----
+  // Persistent cache in SQLite so restarts do not re-spend API quota.
+  // TTLs: GeoIP 7 days, AbuseIPDB 7 days (per user request).
   type IpInfoEntry = {
     country?: string; cc?: string; city?: string; isp?: string;
     abuseScore?: number; abuseReports?: number;
   };
-  const ipCache = new Map<string, { at: number; data: IpInfoEntry }>();
-  const IP_TTL_MS = 6 * 60 * 60 * 1000;
-  const ABUSE_TTL_MS = 12 * 60 * 60 * 1000;
-  const abuseFetchedAt = new Map<string, number>();
+  const GEO_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  const ABUSE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+  const selectIp = db.prepare(
+    "SELECT country, cc, city, isp, geo_fetched_at, abuse_score, abuse_reports, abuse_fetched_at FROM ip_enrichment WHERE ip = ?",
+  );
+  const upsertGeo = db.prepare(`
+    INSERT INTO ip_enrichment (ip, country, cc, city, isp, geo_fetched_at)
+    VALUES (@ip, @country, @cc, @city, @isp, @at)
+    ON CONFLICT(ip) DO UPDATE SET
+      country = excluded.country, cc = excluded.cc, city = excluded.city,
+      isp = excluded.isp, geo_fetched_at = excluded.geo_fetched_at
+  `);
+  const upsertAbuse = db.prepare(`
+    INSERT INTO ip_enrichment (ip, abuse_score, abuse_reports, abuse_fetched_at)
+    VALUES (@ip, @score, @reports, @at)
+    ON CONFLICT(ip) DO UPDATE SET
+      abuse_score = excluded.abuse_score,
+      abuse_reports = excluded.abuse_reports,
+      abuse_fetched_at = excluded.abuse_fetched_at
+  `);
+
+  type IpRow = {
+    country: string | null; cc: string | null; city: string | null; isp: string | null;
+    geo_fetched_at: number | null;
+    abuse_score: number | null; abuse_reports: number | null; abuse_fetched_at: number | null;
+  };
+  function rowToEntry(row: IpRow | undefined): IpInfoEntry {
+    if (!row) return {};
+    return {
+      country: row.country ?? undefined,
+      cc: row.cc ?? undefined,
+      city: row.city ?? undefined,
+      isp: row.isp ?? undefined,
+      abuseScore: row.abuse_score ?? undefined,
+      abuseReports: row.abuse_reports ?? undefined,
+    };
+  }
 
   app.get<{ Querystring: { ips?: string } }>("/api/ipinfo", async (req) => {
     const raw = String(req.query.ips ?? "");
@@ -458,15 +494,14 @@ export async function registerApi(
     const out: Record<string, IpInfoEntry> = {};
     const needGeo: string[] = [];
     const needAbuse: string[] = [];
+
     for (const ip of ips) {
-      const cached = ipCache.get(ip);
-      if (cached && now - cached.at < IP_TTL_MS) {
-        out[ip] = cached.data;
-      } else {
-        needGeo.push(ip);
-      }
-      const ab = abuseFetchedAt.get(ip) ?? 0;
-      if (now - ab > ABUSE_TTL_MS) needAbuse.push(ip);
+      const row = selectIp.get(ip) as IpRow | undefined;
+      out[ip] = rowToEntry(row);
+      const geoAt = row?.geo_fetched_at ?? 0;
+      const abAt = row?.abuse_fetched_at ?? 0;
+      if (now - geoAt > GEO_TTL_MS) needGeo.push(ip);
+      if (now - abAt > ABUSE_TTL_MS) needAbuse.push(ip);
     }
 
     if (needGeo.length) {
@@ -484,16 +519,21 @@ export async function registerApi(
           for (const it of arr) {
             const q = it?.query as string | undefined;
             if (!q) continue;
-            const data: IpInfoEntry = {
+            const entry: IpInfoEntry = {
               country: it.country as string | undefined,
               cc: it.countryCode as string | undefined,
               city: it.city as string | undefined,
               isp: it.isp as string | undefined,
             };
-            const prev = ipCache.get(q)?.data ?? {};
-            const merged = { ...prev, ...data };
-            ipCache.set(q, { at: now, data: merged });
-            out[q] = merged;
+            upsertGeo.run({
+              ip: q,
+              country: entry.country ?? null,
+              cc: entry.cc ?? null,
+              city: entry.city ?? null,
+              isp: entry.isp ?? null,
+              at: now,
+            });
+            out[q] = { ...out[q], ...entry };
           }
         }
       } catch (err) {
@@ -506,6 +546,7 @@ export async function registerApi(
       process.env.ABUSEIPDB_KEY ||
       process.env.ABUSEIPDB_API_KEY;
     if (abuseKey && needAbuse.length) {
+      // Hard cap per request to prevent quota burn on log floods.
       await Promise.all(needAbuse.slice(0, 25).map(async (ip) => {
         try {
           const r = await fetch(
@@ -514,22 +555,28 @@ export async function registerApi(
           );
           if (!r.ok) return;
           const j = (await r.json()) as { data?: { abuseConfidenceScore?: number; totalReports?: number } };
-          const prev = ipCache.get(ip)?.data ?? {};
-          const merged: IpInfoEntry = {
-            ...prev,
-            abuseScore: j.data?.abuseConfidenceScore,
-            abuseReports: j.data?.totalReports,
+          const score = j.data?.abuseConfidenceScore ?? null;
+          const reports = j.data?.totalReports ?? null;
+          upsertAbuse.run({ ip, score, reports, at: now });
+          out[ip] = {
+            ...out[ip],
+            abuseScore: score ?? undefined,
+            abuseReports: reports ?? undefined,
           };
-          ipCache.set(ip, { at: now, data: merged });
-          abuseFetchedAt.set(ip, now);
-          out[ip] = merged;
         } catch {
           /* swallow */
         }
       }));
     }
 
-    return { ok: true, data: out, abuseEnabled: !!abuseKey };
+    return {
+      ok: true,
+      data: out,
+      abuseEnabled: !!abuseKey,
+      cached: ips.length - needGeo.length,
+      geoFetched: needGeo.length,
+      abuseFetched: abuseKey ? Math.min(needAbuse.length, 25) : 0,
+    };
   });
 }
 
