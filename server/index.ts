@@ -143,16 +143,62 @@ if (unifiHost) {
   console.warn("[unifi] UNIFI_HOST not set — API polling disabled");
 }
 
-// ---- Retention ----
+// ---- Retention / cleanup ----
+// Three layered policies, all configurable via env:
+//   1. RETENTION_DAYS           — drop syslog rows older than N days
+//   2. RETENTION_FIREWALL_DAYS  — drop firewall_events older than N days
+//   3. RETENTION_MAX_DB_MB      — hard cap on on-disk DB size; oldest rows
+//                                 are pruned until size is under the cap
+// VACUUM runs every RETENTION_VACUUM_HOURS to actually return space to disk.
 
-setInterval(() => {
-  try {
-    const removed = pruneOlderThan(db, RETENTION_DAYS);
-    if (removed) console.log(`[prune] removed ${removed} rows older than ${RETENTION_DAYS}d`);
-  } catch (err) {
-    console.error("[prune] failed", err);
+let lastVacuum = 0;
+export const retention = {
+  last: null as null | {
+    at: number;
+    bySyslogAge: number;
+    byFirewallAge: number;
+    bySize: number;
+    sizeBytesBefore: number;
+    sizeBytesAfter: number;
+    vacuumed: boolean;
+  },
+};
+
+function runRetention() {
+  const before = dbStats(db).sizeBytes;
+  const bySyslogAge = pruneOlderThan(db, RETENTION_DAYS);
+  const byFirewallAge = pruneFirewallOlderThan(db, RETENTION_FIREWALL_DAYS);
+  const bySize = pruneToMaxSize(db, RETENTION_MAX_DB_MB * 1024 * 1024);
+  const now = Date.now();
+  let vacuumed = false;
+  if (now - lastVacuum > RETENTION_VACUUM_HOURS * 3600_000) {
+    vacuum(db);
+    lastVacuum = now;
+    vacuumed = true;
   }
-}, 6 * 3600_000);
+  const after = dbStats(db).sizeBytes;
+  retention.last = {
+    at: now,
+    bySyslogAge,
+    byFirewallAge,
+    bySize,
+    sizeBytesBefore: before,
+    sizeBytesAfter: after,
+    vacuumed,
+  };
+  if (bySyslogAge || byFirewallAge || bySize || vacuumed) {
+    console.log(
+      `[retention] syslog=${bySyslogAge} fw=${byFirewallAge} size=${bySize} ` +
+        `before=${before} after=${after} vacuum=${vacuumed}`,
+    );
+  }
+}
+
+// Run once at startup then on a schedule.
+try { runRetention(); } catch (err) { console.error("[retention] failed", err); }
+setInterval(() => {
+  try { runRetention(); } catch (err) { console.error("[retention] failed", err); }
+}, Math.max(1, RETENTION_INTERVAL_MIN) * 60_000);
 
 // ---- HTTP server ----
 
