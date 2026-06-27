@@ -73,40 +73,63 @@ function GeoCell({ ip, info }: { ip: string; info?: IpInfo }) {
   );
 }
 
+type ActionFilter = "all" | "allow" | "block" | "drop" | "failure" | "success";
+type ThreatFilter = "all" | "high" | "medium" | "low" | "clean" | "unknown";
+
 function FirewallPage() {
-  const { data: firewallEvents, isLive } = useFirewall();
+  const { data: allEvents, isLive } = useFirewall();
   const { data: firewallByMinute } = useFirewallByMinute();
   const [q, setQ] = useState("");
-  const [action, setAction] = useState<"all" | "failure" | "success">("all");
+  const [srcQ, setSrcQ] = useState("");
+  const [dstQ, setDstQ] = useState("");
+  const [portQ, setPortQ] = useState("");
+  const [proto, setProto] = useState<"all" | "tcp" | "udp" | "icmp">("all");
+  const [action, setAction] = useState<ActionFilter>("all");
+  const [threat, setThreat] = useState<ThreatFilter>("all");
   const [view, setView] = useState<View>("list");
   const [internetOnly, setInternetOnly] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  // Tag every event with its external IP (if any) so we only do this work once.
+  // Pre-filter: this page only deals with iptables / firewall-rule hits.
+  // Wi-Fi / STA / device events live on the Internal events page.
+  const firewallEvents = useMemo(() => allEvents.filter(isFirewallRuleEvent), [allEvents]);
+
   const tagged = useMemo(
     () => firewallEvents.map((e) => ({ event: e, ext: externalIp(e) })),
     [firewallEvents],
   );
 
-  const rows = useMemo(() => {
+  // First pass — everything except threat (which needs IP info derived from these rows).
+  const prelim = useMemo(() => {
     const ql = q.toLowerCase();
-    return tagged
-      .filter(({ event: e, ext }) => {
-        if (internetOnly && !ext) return false;
-        if (action !== "all" && e.action !== action) return false;
-        if (!ql) return true;
-        return (
-          e.rule.toLowerCase().includes(ql) ||
-          e.clientMac?.toLowerCase().includes(ql) ||
-          e.clientName?.toLowerCase().includes(ql) ||
-          e.vap?.toLowerCase().includes(ql) ||
-          e.srcIp?.includes(ql) ||
-          e.dstIp?.includes(ql) ||
-          ext?.includes(ql)
-        );
-      })
-      .map(({ event }) => event);
-  }, [q, action, internetOnly, tagged]);
+    const sq = srcQ.toLowerCase();
+    const dq = dstQ.toLowerCase();
+    const pq = portQ.trim();
+    const actionMatch = (a: string) => {
+      if (action === "all") return true;
+      if (action === "block") return a === "drop" || a === "deny" || a === "block";
+      return a === action;
+    };
+    return tagged.filter(({ event: e, ext }) => {
+      if (internetOnly && !ext) return false;
+      if (!actionMatch(e.action)) return false;
+      if (proto !== "all" && (e.proto ?? "").toLowerCase() !== proto) return false;
+      if (sq && !(e.srcIp ?? "").toLowerCase().includes(sq)) return false;
+      if (dq && !(e.dstIp ?? "").toLowerCase().includes(dq)) return false;
+      if (pq && String(e.srcPort ?? "") !== pq && String(e.dstPort ?? "") !== pq) return false;
+      if (!ql) return true;
+      return (
+        e.rule.toLowerCase().includes(ql) ||
+        e.clientMac?.toLowerCase().includes(ql) ||
+        e.clientName?.toLowerCase().includes(ql) ||
+        e.vap?.toLowerCase().includes(ql) ||
+        e.srcIp?.includes(ql) ||
+        e.dstIp?.includes(ql) ||
+        ext?.includes(ql)
+      );
+    });
+  }, [tagged, q, srcQ, dstQ, portQ, proto, action, internetOnly]);
+
 
   // Unique external IPs in the current filter — used to batch GeoIP/threat lookups.
   const externalIps = useMemo(() => {
