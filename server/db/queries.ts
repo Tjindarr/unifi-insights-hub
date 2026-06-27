@@ -10,10 +10,33 @@ export type DB = ReturnType<typeof openDb>;
 export function openDb(path: string) {
   const db = new Database(path);
   db.pragma("journal_mode = WAL");
+  db.pragma("synchronous = NORMAL");
+  db.pragma("temp_store = MEMORY");
+  db.pragma("mmap_size = 268435456");
+  db.pragma("cache_size = -65536"); // ~64 MiB page cache
   db.pragma("foreign_keys = ON");
   const schema = readFileSync(join(here, "schema.sql"), "utf8");
   db.exec(schema);
+  // Refresh planner stats so partial / composite indexes are picked up.
+  try { db.exec("ANALYZE"); } catch { /* best-effort */ }
   return db;
+}
+
+// ---- Bucket aggregation cache --------------------------------------------
+// Charts on the dashboard refetch every 15s across multiple clients. The
+// aggregation itself is cheap with indexes, but caching the last result for a
+// few seconds collapses N concurrent requests into a single SQL pass.
+
+type BucketRow = { t: number; success: number; failure: number };
+const bucketCache = new Map<string, { at: number; rows: BucketRow[] }>();
+const BUCKET_CACHE_TTL_MS = 5_000;
+let bucketCacheVersion = 0;
+
+/** Call after every batch of firewall_events inserts so the next bucket
+ *  request recomputes instead of serving a stale cached aggregation. */
+export function invalidateBucketCache() {
+  bucketCacheVersion++;
+  if (bucketCache.size > 32) bucketCache.clear();
 }
 
 export function pruneOlderThan(db: Database.Database, days: number) {
@@ -224,7 +247,12 @@ export function recentFirewall(
 export function firewallBuckets(
   db: Database.Database,
   opts: { since?: number; rangeMs?: number; bucketMs: number; kind?: "internal" | "firewall" },
-): { t: number; success: number; failure: number }[] {
+): BucketRow[] {
+  const cacheKey = `${opts.kind ?? "all"}:${opts.bucketMs}:${opts.rangeMs ?? ""}:${bucketCacheVersion}`;
+  const cached = bucketCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && now - cached.at < BUCKET_CACHE_TTL_MS) return cached.rows;
+
   const where: string[] = [];
   const params: Record<string, unknown> = { bucket: opts.bucketMs };
   const kindPredicate = kindWhere(opts.kind);
@@ -234,10 +262,13 @@ export function firewallBuckets(
     SELECT MAX(time) AS newest FROM firewall_events
     ${where.length ? "WHERE " + where.join(" AND ") : ""}`;
   const newest = (db.prepare(newestSql).get(params) as { newest: number | null }).newest;
-  if (newest == null) return [];
+  if (newest == null) {
+    bucketCache.set(cacheKey, { at: now, rows: [] });
+    return [];
+  }
 
-  const wallSince = opts.since ?? Date.now() - (opts.rangeMs ?? 60 * 60_000);
-  const rangeMs = opts.rangeMs ?? Math.max(opts.bucketMs, Date.now() - wallSince);
+  const wallSince = opts.since ?? now - (opts.rangeMs ?? 60 * 60_000);
+  const rangeMs = opts.rangeMs ?? Math.max(opts.bucketMs, now - wallSince);
   params.since = Math.floor((newest - rangeMs) / opts.bucketMs) * opts.bucketMs;
   where.push("time >= @since");
 
@@ -250,7 +281,9 @@ export function firewallBuckets(
     ${where.length ? "WHERE " + where.join(" AND ") : ""}
     GROUP BY t
     ORDER BY t ASC
-  `).all(params) as { t: number; success: number; failure: number }[];
+  `).all(params) as BucketRow[];
+
+  bucketCache.set(cacheKey, { at: now, rows });
   return rows;
 }
 
