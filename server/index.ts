@@ -12,7 +12,17 @@ import cookie from "@fastify/cookie";
 import staticFiles from "@fastify/static";
 import websocket from "@fastify/websocket";
 
-import { openDb, makeSyslogInsert, makeFirewallInsert, pruneOlderThan, setSnapshot } from "./db/queries.ts";
+import {
+  openDb,
+  makeSyslogInsert,
+  makeFirewallInsert,
+  pruneOlderThan,
+  pruneFirewallOlderThan,
+  pruneToMaxSize,
+  vacuum,
+  dbStats,
+  setSnapshot,
+} from "./db/queries.ts";
 import { parseSyslog } from "./syslog/parser.ts";
 import { extractFirewall } from "./syslog/unifi-firewall.ts";
 import { UnifiClient } from "./unifi/client.ts";
