@@ -247,7 +247,12 @@ export function recentFirewall(
 export function firewallBuckets(
   db: Database.Database,
   opts: { since?: number; rangeMs?: number; bucketMs: number; kind?: "internal" | "firewall" },
-): { t: number; success: number; failure: number }[] {
+): BucketRow[] {
+  const cacheKey = `${opts.kind ?? "all"}:${opts.bucketMs}:${opts.rangeMs ?? ""}:${bucketCacheVersion}`;
+  const cached = bucketCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && now - cached.at < BUCKET_CACHE_TTL_MS) return cached.rows;
+
   const where: string[] = [];
   const params: Record<string, unknown> = { bucket: opts.bucketMs };
   const kindPredicate = kindWhere(opts.kind);
@@ -257,10 +262,13 @@ export function firewallBuckets(
     SELECT MAX(time) AS newest FROM firewall_events
     ${where.length ? "WHERE " + where.join(" AND ") : ""}`;
   const newest = (db.prepare(newestSql).get(params) as { newest: number | null }).newest;
-  if (newest == null) return [];
+  if (newest == null) {
+    bucketCache.set(cacheKey, { at: now, rows: [] });
+    return [];
+  }
 
-  const wallSince = opts.since ?? Date.now() - (opts.rangeMs ?? 60 * 60_000);
-  const rangeMs = opts.rangeMs ?? Math.max(opts.bucketMs, Date.now() - wallSince);
+  const wallSince = opts.since ?? now - (opts.rangeMs ?? 60 * 60_000);
+  const rangeMs = opts.rangeMs ?? Math.max(opts.bucketMs, now - wallSince);
   params.since = Math.floor((newest - rangeMs) / opts.bucketMs) * opts.bucketMs;
   where.push("time >= @since");
 
@@ -273,7 +281,9 @@ export function firewallBuckets(
     ${where.length ? "WHERE " + where.join(" AND ") : ""}
     GROUP BY t
     ORDER BY t ASC
-  `).all(params) as { t: number; success: number; failure: number }[];
+  `).all(params) as BucketRow[];
+
+  bucketCache.set(cacheKey, { at: now, rows });
   return rows;
 }
 
