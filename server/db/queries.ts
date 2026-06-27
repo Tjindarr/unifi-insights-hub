@@ -157,6 +157,21 @@ const INTERNAL_WHERE = `(
   )
 )`;
 
+const FIREWALL_WHERE = `(
+  src_ip IS NOT NULL
+  OR dst_ip IS NOT NULL
+  OR rule LIKE 'LAN\\_%' ESCAPE '\\'
+  OR rule LIKE 'WAN\\_%' ESCAPE '\\'
+  OR rule LIKE 'GUEST\\_%' ESCAPE '\\'
+  OR rule IN ('UFW','UBNT','FW')
+)`;
+
+function kindWhere(kind?: "internal" | "firewall") {
+  if (kind === "internal") return INTERNAL_WHERE;
+  if (kind === "firewall") return FIREWALL_WHERE;
+  return null;
+}
+
 export function recentFirewall(
   db: Database.Database,
   opts: {
@@ -171,21 +186,14 @@ export function recentFirewall(
   const limit = Math.min(opts.limit ?? 500, 200000);
   const where: string[] = [];
   const params: Record<string, unknown> = {};
-  if (opts.kind === "internal") where.push(INTERNAL_WHERE);
-  else if (opts.kind === "firewall") {
+  const kindPredicate = kindWhere(opts.kind);
+  if (kindPredicate) {
     // Positive predicate: rows that actually look like an iptables / UniFi
     // firewall-rule hit. Using the complement of INTERNAL_WHERE turned out to
     // be too aggressive — events whose `rule` is the friendly DESCR name
     // ("Allow Established") were filtered out incorrectly. A firewall row has
     // either SRC/DST IPs or a recognisable rule tag prefix.
-    where.push(`(
-      src_ip IS NOT NULL
-      OR dst_ip IS NOT NULL
-      OR rule LIKE 'LAN\\_%' ESCAPE '\\'
-      OR rule LIKE 'WAN\\_%' ESCAPE '\\'
-      OR rule LIKE 'GUEST\\_%' ESCAPE '\\'
-      OR rule IN ('UFW','UBNT','FW')
-    )`);
+    where.push(kindPredicate);
   }
   if (opts.action) {
     where.push("action = @action");
@@ -215,18 +223,34 @@ export function recentFirewall(
 // how many rows the table fetches.
 export function firewallBuckets(
   db: Database.Database,
-  opts: { since: number; bucketMs: number },
+  opts: { since?: number; rangeMs?: number; bucketMs: number; kind?: "internal" | "firewall" },
 ): { t: number; success: number; failure: number }[] {
+  const where: string[] = [];
+  const params: Record<string, unknown> = { bucket: opts.bucketMs };
+  const kindPredicate = kindWhere(opts.kind);
+  if (kindPredicate) where.push(kindPredicate);
+
+  const newestSql = `
+    SELECT MAX(time) AS newest FROM firewall_events
+    ${where.length ? "WHERE " + where.join(" AND ") : ""}`;
+  const newest = (db.prepare(newestSql).get(params) as { newest: number | null }).newest;
+  if (newest == null) return [];
+
+  const wallSince = opts.since ?? Date.now() - (opts.rangeMs ?? 60 * 60_000);
+  const rangeMs = opts.rangeMs ?? Math.max(opts.bucketMs, Date.now() - wallSince);
+  params.since = Math.floor((newest - rangeMs) / opts.bucketMs) * opts.bucketMs;
+  where.push("time >= @since");
+
   const rows = db.prepare(`
     SELECT
       (time / @bucket) * @bucket AS t,
       SUM(CASE WHEN action = 'failure' THEN 1 ELSE 0 END) AS failure,
       SUM(CASE WHEN action != 'failure' THEN 1 ELSE 0 END) AS success
     FROM firewall_events
-    WHERE time >= @since
+    ${where.length ? "WHERE " + where.join(" AND ") : ""}
     GROUP BY t
     ORDER BY t ASC
-  `).all({ since: opts.since, bucket: opts.bucketMs }) as { t: number; success: number; failure: number }[];
+  `).all(params) as { t: number; success: number; failure: number }[];
   return rows;
 }
 
