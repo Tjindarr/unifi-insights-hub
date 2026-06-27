@@ -109,7 +109,7 @@ export function describeFirewallEvent(e: FirewallEvent): string {
 
   // ---- Firewall rule (iptables / UniFi rule tag) ----
   if (e.srcIp || e.dstIp) {
-    const verb = e.action === "allow" ? "Allowed" : e.action === "reject" ? "Rejected" : "Blocked";
+    const verb = e.action === "allow" ? "Allowed" : e.action === "drop" ? "Dropped" : "Blocked";
     const src = e.srcIp ? `${e.srcIp}${e.srcPort ? `:${e.srcPort}` : ""}` : "?";
     const dst = e.dstIp ? `${e.dstIp}${e.dstPort ? `:${e.dstPort}` : ""}` : "?";
     const proto = e.proto ? ` ${e.proto.toUpperCase()}` : "";
