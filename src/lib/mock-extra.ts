@@ -280,10 +280,10 @@ export const deauthReasonMap: Record<string, string> = {
 // ---- Topology ----
 
 export const topology = {
-  gateway: { name: "UDR-7", model: "Dream Router 7" },
+  gateway: { name: "UDR-7", model: "Dream Router 7", mac: "" },
   switches: [
-    { name: "sw-rack-24", model: "USW-24-PoE", ports: 24, clients: 18 },
-    { name: "sw-office-8", model: "USW-Flex-Mini", ports: 8, clients: 4 },
+    { name: "sw-rack-24", model: "USW-24-PoE", mac: "", ports: 24, clients: 18 },
+    { name: "sw-office-8", model: "USW-Flex-Mini", mac: "", ports: 8, clients: 4 },
   ],
   aps: accessPoints,
 };
