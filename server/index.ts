@@ -25,6 +25,12 @@ import {
 } from "./db/queries.ts";
 import { parseSyslog } from "./syslog/parser.ts";
 import { extractFirewall } from "./syslog/unifi-firewall.ts";
+import {
+  applyNoiseFilter,
+  extract as extractEnrichments,
+  makeEnricherInserts,
+  pruneEnrichmentsOlderThan,
+} from "./syslog/enrichers.ts";
 import { UnifiManager } from "./unifi/manager.ts";
 import { makeAuth } from "./auth.ts";
 import { registerApi } from "./api/routes.ts";
@@ -45,6 +51,11 @@ const config = new ConfigStore(CONFIG_PATH);
 const db = openDb(DB_PATH);
 const insertSyslog = makeSyslogInsert(db);
 const insertFirewall = makeFirewallInsert(db);
+const enrichers = makeEnricherInserts(db);
+
+// counters for /api/collector
+const counters = { dropped: 0, downgraded: 0, enriched: 0 };
+export { counters as syslogCounters };
 
 
 // ---- UDP syslog listener ----
