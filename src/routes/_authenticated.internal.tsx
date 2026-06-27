@@ -45,8 +45,18 @@ const CATEGORY_STYLE: Record<InternalCategory, string> = {
   "other": "bg-secondary/40 text-muted-foreground",
 };
 
+const CHART_SERIES: { key: InternalCategory; label: string; color: string }[] = [
+  { key: "connect",       label: "Connect",     color: "var(--color-chart-2)" },
+  { key: "auth-success",  label: "Auth ok",     color: "var(--color-primary)" },
+  { key: "roam",          label: "Roam",        color: "var(--color-chart-3)" },
+  { key: "disconnect",    label: "Disconnect",  color: "var(--color-muted-foreground)" },
+  { key: "auth-failure",  label: "Auth fail",   color: "var(--color-severity-error)" },
+  { key: "other",         label: "Other",       color: "var(--color-chart-4)" },
+];
+
 function InternalPage() {
   const { data: events, isLive } = useFirewall();
+  const { range } = useUI();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
