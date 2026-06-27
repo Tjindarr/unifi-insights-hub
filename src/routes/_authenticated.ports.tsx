@@ -29,12 +29,16 @@ function PortsPage() {
         title="Ports & devices"
         description="Switch ports, PoE, firmware, and SSIDs"
         actions={
-          <div className="flex rounded-md border border-border overflow-hidden text-xs">
-            {devices.map((d) => (
-              <button key={d} onClick={() => setDev(d)} className={cn("px-2.5 py-1.5", dev === d ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-secondary/60")}>{d}</button>
-            ))}
+          <div className="flex items-center gap-2">
+            <DemoBadge isLive={portsLive} />
+            <div className="flex rounded-md border border-border overflow-hidden text-xs">
+              {devices.map((d) => (
+                <button key={d} onClick={() => setDev(d)} className={cn("px-2.5 py-1.5", dev === d ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-secondary/60")}>{d}</button>
+              ))}
+            </div>
           </div>
         }
+
       />
       <div className="p-6 space-y-6">
         <div className="rounded-lg border border-border bg-card overflow-hidden">
