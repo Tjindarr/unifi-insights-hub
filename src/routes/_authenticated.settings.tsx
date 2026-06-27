@@ -82,6 +82,13 @@ function SettingsPage() {
           enabled: !!s.unifi.enabled,
         });
         setRetForm({ ...s.retention });
+        if (s.noiseFilter) {
+          setNoiseForm({
+            enabled: !!s.noiseFilter.enabled,
+            action: s.noiseFilter.action === "downgrade" ? "downgrade" : "drop",
+            patternsText: (s.noiseFilter.patterns ?? []).join("\n"),
+          });
+        }
       }
       if (r) setRetention(r);
     } catch { /* preview mode */ }
