@@ -81,3 +81,46 @@ CREATE TABLE IF NOT EXISTS unifi_dpi_snapshot (
   json TEXT NOT NULL
 );
 
+-- ---- Syslog-derived enrichment tables -----------------------------------
+-- MAC ↔ IP history derived from wevent EVENT_STA_IP lines on the APs.
+CREATE TABLE IF NOT EXISTS client_ip_history (
+  id    INTEGER PRIMARY KEY AUTOINCREMENT,
+  time  INTEGER NOT NULL,
+  mac   TEXT NOT NULL,
+  ip    TEXT NOT NULL,
+  vap   TEXT,
+  host  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ciph_mac  ON client_ip_history(mac, time DESC);
+CREATE INDEX IF NOT EXISTS idx_ciph_time ON client_ip_history(time DESC);
+
+-- DHCP ACKs from dnsmasq-dhcp on the gateway. Authoritative MAC→hostname/IP.
+CREATE TABLE IF NOT EXISTS dhcp_leases (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  time      INTEGER NOT NULL,
+  mac       TEXT NOT NULL,
+  ip        TEXT NOT NULL,
+  hostname  TEXT,
+  op        TEXT          -- DHCPACK / DHCPOFFER / DHCPREQUEST / DHCPNAK
+);
+CREATE INDEX IF NOT EXISTS idx_dhcp_mac  ON dhcp_leases(mac, time DESC);
+CREATE INDEX IF NOT EXISTS idx_dhcp_time ON dhcp_leases(time DESC);
+
+-- Wi-Fi association / auth events from stahtd STA-TRACKER JSON blobs.
+CREATE TABLE IF NOT EXISTS wifi_auth_events (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  time          INTEGER NOT NULL,
+  mac           TEXT NOT NULL,
+  vap           TEXT,
+  event_type    TEXT,     -- success / failure
+  message_type  TEXT,
+  assoc_status  INTEGER,
+  auth_failures INTEGER,
+  rssi          INTEGER,
+  reason_code   TEXT,
+  reason        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_wae_mac  ON wifi_auth_events(mac, time DESC);
+CREATE INDEX IF NOT EXISTS idx_wae_time ON wifi_auth_events(time DESC);
+
+
