@@ -12,6 +12,7 @@ type Status = {
   lastPollAt: number | null;
   lastError: string | null;
   lastOk: boolean;
+  optionalErrors?: Record<string, string>;
 };
 
 export class UnifiManager {
@@ -23,11 +24,19 @@ export class UnifiManager {
     lastPollAt: null,
     lastError: null,
     lastOk: false,
+    optionalErrors: {},
   };
 
   constructor(private db: Database.Database, private intervalMs = 10_000) {}
 
   getStatus(): Status { return this.status; }
+
+  async diagnostics() {
+    if (!this.client) {
+      return { ok: false, error: "UniFi poller is not running. Check Settings → UniFi and make sure it is enabled." };
+    }
+    return { ok: true, ...(await this.client.diagnostics()) };
+  }
 
   apply(cfg: { enabled: boolean; host: string; user: string; password: string; site: string }) {
     this.stop();
@@ -59,11 +68,14 @@ export class UnifiManager {
       x && typeof x === "object" && "data" in (x as Record<string, unknown>)
         ? (x as { data: unknown }).data
         : x;
+    const optionalErrors: Record<string, string> = {};
     const tryCall = async <T>(label: string, fn: () => Promise<T>): Promise<T | null> => {
       try { return await fn(); }
       catch (err) {
         // Soft-fail for optional endpoints (events, dpi may be unavailable on some firmwares)
-        console.warn(`[unifi] ${label} failed:`, err instanceof Error ? err.message : err);
+        const msg = err instanceof Error ? err.message : String(err);
+        optionalErrors[label] = msg;
+        console.warn(`[unifi] ${label} failed:`, msg);
         return null;
       }
     };
@@ -86,10 +98,10 @@ export class UnifiManager {
       if (events) setSnapshot(this.db, "unifi_events_snapshot", unwrap(events));
       if (dpi) setSnapshot(this.db, "unifi_dpi_snapshot", unwrap(dpi));
 
-      this.status = { ...this.status, lastPollAt: Date.now(), lastOk: true, lastError: null };
+      this.status = { ...this.status, lastPollAt: Date.now(), lastOk: true, lastError: null, optionalErrors };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.status = { ...this.status, lastPollAt: Date.now(), lastOk: false, lastError: msg };
+      this.status = { ...this.status, lastPollAt: Date.now(), lastOk: false, lastError: msg, optionalErrors };
       console.error("[unifi] poll failed", msg);
     }
   }
