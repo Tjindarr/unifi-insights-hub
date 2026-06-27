@@ -1,8 +1,9 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
-  Activity, AlertCircle, BarChart3, Cable, Command as CommandIcon, Flame,
+  Activity, AlertCircle, BarChart3, Cable, Command as CommandIcon, FileText, Flame,
   LayoutDashboard, LogOut, Network, Plug, ScrollText, Search, Settings,
   Shield, Wifi,
+
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -15,7 +16,8 @@ import { CommandPalette } from "@/components/command-palette";
 
 type NavItem = {
   to: "/" | "/clients" | "/network" | "/wan" | "/topology" | "/dpi" | "/ports"
-    | "/firewall" | "/events" | "/logs" | "/settings";
+    | "/firewall" | "/events" | "/logs" | "/raw" | "/settings";
+
   label: string;
   icon: typeof LayoutDashboard;
   exact?: boolean;
@@ -33,6 +35,8 @@ const nav: NavItem[] = [
   { to: "/firewall", label: "Firewall", icon: Flame,                         group: "Security" },
   { to: "/events",   label: "Events",   icon: AlertCircle,                   group: "Security" },
   { to: "/logs",     label: "Logs",     icon: ScrollText,                    group: "Security" },
+  { to: "/raw",      label: "Raw syslog", icon: FileText,                    group: "Security" },
+
   { to: "/settings", label: "Settings", icon: Settings,                      group: "System" },
 ];
 

@@ -16,6 +16,7 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.
 import { Route as AuthenticatedWanRouteImport } from './routes/_authenticated.wan'
 import { Route as AuthenticatedTopologyRouteImport } from './routes/_authenticated.topology'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated.settings'
+import { Route as AuthenticatedRawRouteImport } from './routes/_authenticated.raw'
 import { Route as AuthenticatedPortsRouteImport } from './routes/_authenticated.ports'
 import { Route as AuthenticatedNetworkRouteImport } from './routes/_authenticated.network'
 import { Route as AuthenticatedLogsRouteImport } from './routes/_authenticated.logs'
@@ -56,6 +57,11 @@ const AuthenticatedTopologyRoute = AuthenticatedTopologyRouteImport.update({
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedRawRoute = AuthenticatedRawRouteImport.update({
+  id: '/raw',
+  path: '/raw',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedPortsRoute = AuthenticatedPortsRouteImport.update({
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/logs': typeof AuthenticatedLogsRoute
   '/network': typeof AuthenticatedNetworkRoute
   '/ports': typeof AuthenticatedPortsRoute
+  '/raw': typeof AuthenticatedRawRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/topology': typeof AuthenticatedTopologyRoute
   '/wan': typeof AuthenticatedWanRoute
@@ -119,6 +126,7 @@ export interface FileRoutesByTo {
   '/logs': typeof AuthenticatedLogsRoute
   '/network': typeof AuthenticatedNetworkRoute
   '/ports': typeof AuthenticatedPortsRoute
+  '/raw': typeof AuthenticatedRawRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/topology': typeof AuthenticatedTopologyRoute
   '/wan': typeof AuthenticatedWanRoute
@@ -136,6 +144,7 @@ export interface FileRoutesById {
   '/_authenticated/logs': typeof AuthenticatedLogsRoute
   '/_authenticated/network': typeof AuthenticatedNetworkRoute
   '/_authenticated/ports': typeof AuthenticatedPortsRoute
+  '/_authenticated/raw': typeof AuthenticatedRawRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/topology': typeof AuthenticatedTopologyRoute
   '/_authenticated/wan': typeof AuthenticatedWanRoute
@@ -154,6 +163,7 @@ export interface FileRouteTypes {
     | '/logs'
     | '/network'
     | '/ports'
+    | '/raw'
     | '/settings'
     | '/topology'
     | '/wan'
@@ -168,6 +178,7 @@ export interface FileRouteTypes {
     | '/logs'
     | '/network'
     | '/ports'
+    | '/raw'
     | '/settings'
     | '/topology'
     | '/wan'
@@ -184,6 +195,7 @@ export interface FileRouteTypes {
     | '/_authenticated/logs'
     | '/_authenticated/network'
     | '/_authenticated/ports'
+    | '/_authenticated/raw'
     | '/_authenticated/settings'
     | '/_authenticated/topology'
     | '/_authenticated/wan'
@@ -247,6 +259,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/raw': {
+      id: '/_authenticated/raw'
+      path: '/raw'
+      fullPath: '/raw'
+      preLoaderRoute: typeof AuthenticatedRawRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/ports': {
       id: '/_authenticated/ports'
       path: '/ports'
@@ -307,6 +326,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedLogsRoute: typeof AuthenticatedLogsRoute
   AuthenticatedNetworkRoute: typeof AuthenticatedNetworkRoute
   AuthenticatedPortsRoute: typeof AuthenticatedPortsRoute
+  AuthenticatedRawRoute: typeof AuthenticatedRawRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTopologyRoute: typeof AuthenticatedTopologyRoute
   AuthenticatedWanRoute: typeof AuthenticatedWanRoute
@@ -321,6 +341,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedLogsRoute: AuthenticatedLogsRoute,
   AuthenticatedNetworkRoute: AuthenticatedNetworkRoute,
   AuthenticatedPortsRoute: AuthenticatedPortsRoute,
+  AuthenticatedRawRoute: AuthenticatedRawRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTopologyRoute: AuthenticatedTopologyRoute,
   AuthenticatedWanRoute: AuthenticatedWanRoute,
