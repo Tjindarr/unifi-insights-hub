@@ -53,8 +53,13 @@ function SettingsPage() {
     retentionDays: 30, retentionFirewallDays: 30,
     maxDbMb: 2048, intervalMin: 60, vacuumHours: 24,
   });
+  const [noiseForm, setNoiseForm] = useState<{
+    enabled: boolean; action: "drop" | "downgrade"; patternsText: string;
+  }>({ enabled: true, action: "drop", patternsText: "" });
   const [savingUnifi, setSavingUnifi] = useState(false);
   const [savingRet, setSavingRet] = useState(false);
+  const [savingNoise, setSavingNoise] = useState(false);
+  const [noiseMsg, setNoiseMsg] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null);
   const [unifiMsg, setUnifiMsg] = useState<string | null>(null);
