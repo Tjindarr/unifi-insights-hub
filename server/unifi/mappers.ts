@@ -186,7 +186,7 @@ export function mapOverview(rawClients: any, rawDevices: any, _rawHealth: any) {
   const totalRx = gwRx || clients.reduce((a, c) => a + c.rxRate, 0);
   const totalTx = gwTx || clients.reduce((a, c) => a + c.txRate, 0);
   const topTalkers = [...clients]
-    .sort((a, b) => b.rxRate + b.txRate - a.rxRate - a.txRate)
+    .sort((a, b) => (b.rxBytes ?? 0) - (a.rxBytes ?? 0))
     .slice(0, 10);
   return {
     totalClients: clients.length,
