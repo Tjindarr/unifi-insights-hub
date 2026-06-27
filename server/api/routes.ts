@@ -18,7 +18,8 @@ export async function registerApi(app: FastifyInstance, { db, auth }: Deps) {
   app.post<{ Body: { username: string; password: string } }>("/api/login", async (req, reply) => {
     const { username, password } = req.body ?? ({} as Record<string, string>);
     if (!username || !password) return reply.code(400).send({ ok: false });
-    if (!auth.checkCredentials(username, password)) {
+    const result = auth.checkCredentials(username, password);
+    if (!result.ok) {
       return reply.code(401).send({ ok: false });
     }
     const cookie = auth.issueCookie();
@@ -28,8 +29,33 @@ export async function registerApi(app: FastifyInstance, { db, auth }: Deps) {
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7,
     });
-    return { ok: true };
+    reply.setCookie("unifi_user", username, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+    return { ok: true, mustChange: result.mustChange };
   });
+
+  app.post<{ Body: { currentPassword: string; newPassword: string } }>(
+    "/api/change-password",
+    async (req, reply) => {
+      const cookies = req.cookies as Record<string, string | undefined>;
+      if (!auth.verifyCookie(cookies[auth.cookieName])) {
+        return reply.code(401).send({ ok: false, error: "unauthorized" });
+      }
+      const username = cookies["unifi_user"];
+      if (!username) return reply.code(401).send({ ok: false, error: "no session user" });
+      const { currentPassword, newPassword } = req.body ?? ({} as Record<string, string>);
+      if (!currentPassword || !newPassword) {
+        return reply.code(400).send({ ok: false, error: "missing fields" });
+      }
+      const res = auth.changePassword(username, currentPassword, newPassword);
+      if (!res.ok) return reply.code(400).send(res);
+      return { ok: true };
+    },
+  );
 
   app.post("/api/logout", async (_req, reply) => {
     reply.clearCookie(auth.cookieName, { path: "/" });
@@ -38,7 +64,7 @@ export async function registerApi(app: FastifyInstance, { db, auth }: Deps) {
 
   app.addHook("preHandler", async (req, reply) => {
     if (!req.url.startsWith("/api/")) return;
-    if (req.url === "/api/login" || req.url === "/api/health") return;
+    if (req.url === "/api/login" || req.url === "/api/health" || req.url === "/api/change-password") return;
     const cookie = (req.cookies as Record<string, string | undefined>)[auth.cookieName];
     if (!auth.verifyCookie(cookie)) return reply.code(401).send({ ok: false, error: "unauthorized" });
   });
