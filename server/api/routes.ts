@@ -2,18 +2,38 @@ import type Database from "better-sqlite3";
 import type { FastifyInstance } from "fastify";
 
 import {
+  dbStats,
   getSnapshot,
   recentFirewall,
   recentSyslog,
 } from "./db/queries.ts";
 import type { makeAuth } from "./auth.ts";
 
+type RetentionConfig = {
+  retentionDays: number;
+  retentionFirewallDays: number;
+  maxDbMb: number;
+  intervalMin: number;
+  vacuumHours: number;
+};
+type RetentionState = {
+  last: null | {
+    at: number;
+    bySyslogAge: number;
+    byFirewallAge: number;
+    bySize: number;
+    sizeBytesBefore: number;
+    sizeBytesAfter: number;
+    vacuumed: boolean;
+  };
+};
 type Deps = {
   db: Database.Database;
   auth: ReturnType<typeof makeAuth>;
+  retention: { config: RetentionConfig; state: RetentionState; run: () => void };
 };
 
-export async function registerApi(app: FastifyInstance, { db, auth }: Deps) {
+export async function registerApi(app: FastifyInstance, { db, auth, retention }: Deps) {
   // ---- auth ----
   app.post<{ Body: { username: string; password: string } }>("/api/login", async (req, reply) => {
     const { username, password } = req.body ?? ({} as Record<string, string>);
@@ -69,7 +89,30 @@ export async function registerApi(app: FastifyInstance, { db, auth }: Deps) {
     if (!auth.verifyCookie(cookie)) return reply.code(401).send({ ok: false, error: "unauthorized" });
   });
 
-  app.get("/api/health", async () => ({ ok: true }));
+  // Liveness probe — used by Docker HEALTHCHECK. Always returns DB stats so a
+  // single curl tells you "is the container alive and is the DB sane?".
+  app.get("/api/health", async () => {
+    const stats = dbStats(db);
+    return {
+      ok: true,
+      uptimeSec: Math.round(process.uptime()),
+      db: stats,
+      retention: { config: retention.config, last: retention.state.last },
+    };
+  });
+
+  // Read current retention policy + last run summary.
+  app.get("/api/retention", async () => ({
+    config: retention.config,
+    last: retention.state.last,
+    db: dbStats(db),
+  }));
+
+  // Force a retention pass immediately. Useful from the Settings page.
+  app.post("/api/retention/run", async () => {
+    retention.run();
+    return { ok: true, last: retention.state.last, db: dbStats(db) };
+  });
 
   // ---- overview ----
   app.get("/api/overview", async () => {

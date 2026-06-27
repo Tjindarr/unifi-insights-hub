@@ -17,10 +17,64 @@ export function openDb(path: string) {
 }
 
 export function pruneOlderThan(db: Database.Database, days: number) {
+  if (!days || days <= 0) return 0;
   const cutoff = Date.now() - days * 86400_000;
   const info = db.prepare("DELETE FROM syslog WHERE time < ?").run(cutoff);
   // firewall_events cascade via FK
   return info.changes;
+}
+
+export function pruneFirewallOlderThan(db: Database.Database, days: number) {
+  if (!days || days <= 0) return 0;
+  const cutoff = Date.now() - days * 86400_000;
+  const info = db.prepare("DELETE FROM firewall_events WHERE time < ?").run(cutoff);
+  return info.changes;
+}
+
+/**
+ * Trim the oldest syslog rows until the on-disk DB size is at or below
+ * `maxBytes`. Deletes in batches then re-checks. Returns rows removed.
+ * firewall_events cascade via FK.
+ */
+export function pruneToMaxSize(db: Database.Database, maxBytes: number) {
+  if (!maxBytes || maxBytes <= 0) return 0;
+  let removed = 0;
+  for (let i = 0; i < 50; i++) {
+    if (dbSizeBytes(db) <= maxBytes) break;
+    const info = db
+      .prepare(
+        "DELETE FROM syslog WHERE id IN (SELECT id FROM syslog ORDER BY time ASC LIMIT 10000)",
+      )
+      .run();
+    if (info.changes === 0) break;
+    removed += info.changes;
+  }
+  return removed;
+}
+
+export function dbSizeBytes(db: Database.Database): number {
+  const page = db.pragma("page_size", { simple: true }) as number;
+  const count = db.pragma("page_count", { simple: true }) as number;
+  return page * count;
+}
+
+export function dbStats(db: Database.Database) {
+  const syslogCount = (db.prepare("SELECT COUNT(*) AS n FROM syslog").get() as { n: number }).n;
+  const fwCount = (db.prepare("SELECT COUNT(*) AS n FROM firewall_events").get() as { n: number }).n;
+  const oldest = (db.prepare("SELECT MIN(time) AS t FROM syslog").get() as { t: number | null }).t;
+  const newest = (db.prepare("SELECT MAX(time) AS t FROM syslog").get() as { t: number | null }).t;
+  return {
+    sizeBytes: dbSizeBytes(db),
+    syslogCount,
+    firewallCount: fwCount,
+    oldestTime: oldest,
+    newestTime: newest,
+  };
+}
+
+export function vacuum(db: Database.Database) {
+  // VACUUM cannot run inside a transaction.
+  db.exec("VACUUM");
 }
 
 // ---- Syslog inserts ----

@@ -12,7 +12,17 @@ import cookie from "@fastify/cookie";
 import staticFiles from "@fastify/static";
 import websocket from "@fastify/websocket";
 
-import { openDb, makeSyslogInsert, makeFirewallInsert, pruneOlderThan, setSnapshot } from "./db/queries.ts";
+import {
+  openDb,
+  makeSyslogInsert,
+  makeFirewallInsert,
+  pruneOlderThan,
+  pruneFirewallOlderThan,
+  pruneToMaxSize,
+  vacuum,
+  dbStats,
+  setSnapshot,
+} from "./db/queries.ts";
 import { parseSyslog } from "./syslog/parser.ts";
 import { extractFirewall } from "./syslog/unifi-firewall.ts";
 import { UnifiClient } from "./unifi/client.ts";
@@ -31,6 +41,10 @@ const HTTP_PORT = Number(env("HTTP_PORT", "3000"));
 const SYSLOG_UDP_PORT = Number(env("SYSLOG_UDP_PORT", "514"));
 const DB_PATH = env("DB_PATH", "/data/unifi.db")!;
 const RETENTION_DAYS = Number(env("RETENTION_DAYS", "30"));
+const RETENTION_FIREWALL_DAYS = Number(env("RETENTION_FIREWALL_DAYS", String(RETENTION_DAYS)));
+const RETENTION_MAX_DB_MB = Number(env("RETENTION_MAX_DB_MB", "2048"));
+const RETENTION_INTERVAL_MIN = Number(env("RETENTION_INTERVAL_MIN", "60"));
+const RETENTION_VACUUM_HOURS = Number(env("RETENTION_VACUUM_HOURS", "24"));
 
 const db = openDb(DB_PATH);
 const insertSyslog = makeSyslogInsert(db);
@@ -129,16 +143,62 @@ if (unifiHost) {
   console.warn("[unifi] UNIFI_HOST not set — API polling disabled");
 }
 
-// ---- Retention ----
+// ---- Retention / cleanup ----
+// Three layered policies, all configurable via env:
+//   1. RETENTION_DAYS           — drop syslog rows older than N days
+//   2. RETENTION_FIREWALL_DAYS  — drop firewall_events older than N days
+//   3. RETENTION_MAX_DB_MB      — hard cap on on-disk DB size; oldest rows
+//                                 are pruned until size is under the cap
+// VACUUM runs every RETENTION_VACUUM_HOURS to actually return space to disk.
 
-setInterval(() => {
-  try {
-    const removed = pruneOlderThan(db, RETENTION_DAYS);
-    if (removed) console.log(`[prune] removed ${removed} rows older than ${RETENTION_DAYS}d`);
-  } catch (err) {
-    console.error("[prune] failed", err);
+let lastVacuum = 0;
+export const retention = {
+  last: null as null | {
+    at: number;
+    bySyslogAge: number;
+    byFirewallAge: number;
+    bySize: number;
+    sizeBytesBefore: number;
+    sizeBytesAfter: number;
+    vacuumed: boolean;
+  },
+};
+
+function runRetention() {
+  const before = dbStats(db).sizeBytes;
+  const bySyslogAge = pruneOlderThan(db, RETENTION_DAYS);
+  const byFirewallAge = pruneFirewallOlderThan(db, RETENTION_FIREWALL_DAYS);
+  const bySize = pruneToMaxSize(db, RETENTION_MAX_DB_MB * 1024 * 1024);
+  const now = Date.now();
+  let vacuumed = false;
+  if (now - lastVacuum > RETENTION_VACUUM_HOURS * 3600_000) {
+    vacuum(db);
+    lastVacuum = now;
+    vacuumed = true;
   }
-}, 6 * 3600_000);
+  const after = dbStats(db).sizeBytes;
+  retention.last = {
+    at: now,
+    bySyslogAge,
+    byFirewallAge,
+    bySize,
+    sizeBytesBefore: before,
+    sizeBytesAfter: after,
+    vacuumed,
+  };
+  if (bySyslogAge || byFirewallAge || bySize || vacuumed) {
+    console.log(
+      `[retention] syslog=${bySyslogAge} fw=${byFirewallAge} size=${bySize} ` +
+        `before=${before} after=${after} vacuum=${vacuumed}`,
+    );
+  }
+}
+
+// Run once at startup then on a schedule.
+try { runRetention(); } catch (err) { console.error("[retention] failed", err); }
+setInterval(() => {
+  try { runRetention(); } catch (err) { console.error("[retention] failed", err); }
+}, Math.max(1, RETENTION_INTERVAL_MIN) * 60_000);
 
 // ---- HTTP server ----
 
@@ -155,7 +215,21 @@ const app = Fastify({ logger: { level: "info" } });
 await app.register(cookie);
 await app.register(websocket);
 
-await registerApi(app, { db, auth });
+await registerApi(app, {
+  db,
+  auth,
+  retention: {
+    config: {
+      retentionDays: RETENTION_DAYS,
+      retentionFirewallDays: RETENTION_FIREWALL_DAYS,
+      maxDbMb: RETENTION_MAX_DB_MB,
+      intervalMin: RETENTION_INTERVAL_MIN,
+      vacuumHours: RETENTION_VACUUM_HOURS,
+    },
+    state: retention,
+    run: runRetention,
+  },
+});
 
 app.get("/ws", { websocket: true }, (conn, req) => {
   const cookies = (req.headers.cookie ?? "")

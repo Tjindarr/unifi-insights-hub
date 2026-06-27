@@ -13,7 +13,8 @@ RUN npm run build
 
 FROM node:22-alpine AS server
 WORKDIR /app
-RUN apk add --no-cache python3 make g++ sqlite
+# wget is used by the HEALTHCHECK; sqlite for ad-hoc debugging from `docker exec`.
+RUN apk add --no-cache python3 make g++ sqlite wget tini
 COPY server/package.json server/package.json
 RUN cd server && npm install --no-audit --no-fund
 COPY server ./server
@@ -23,11 +24,20 @@ ENV NODE_ENV=production \
     HTTP_PORT=3000 \
     SYSLOG_UDP_PORT=514 \
     DB_PATH=/data/unifi.db \
-    RETENTION_DAYS=30
+    RETENTION_DAYS=30 \
+    RETENTION_FIREWALL_DAYS=30 \
+    RETENTION_MAX_DB_MB=2048 \
+    RETENTION_INTERVAL_MIN=60 \
+    RETENTION_VACUUM_HOURS=24
 
 VOLUME ["/data"]
 EXPOSE 3000/tcp
 EXPOSE 514/udp
 
+# Healthcheck hits the unauthenticated /api/health endpoint; returns DB stats too.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- "http://127.0.0.1:${HTTP_PORT}/api/health" >/dev/null || exit 1
+
 WORKDIR /app/server
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["npm", "start"]
