@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChevronRight, Download, Search } from "lucide-react";
 
 import { PageHeader, SeverityDot } from "@/components/app-shell";
 import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
-import { useFirewall } from "@/lib/live";
+import { useFirewall, useInternalByBucket } from "@/lib/live";
+import { useUI } from "@/lib/ui-store";
 import {
   describeFirewallEvent,
   internalCategory,
