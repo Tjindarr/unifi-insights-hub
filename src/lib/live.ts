@@ -206,7 +206,15 @@ function bucketEvents<T extends string>(
   keys: readonly T[],
 ): { t: string; [k: string]: number | string }[] {
   const { windowMs, bucketMs } = bucketSpecForRange(range);
-  const now = Date.now();
+  // Anchor "now" to whichever is later: wall-clock or the newest event time.
+  // This avoids dropping fresh events when the source device's clock is ahead
+  // of the browser's clock (common with UDR vs laptop drift).
+  let latest = Date.now();
+  for (const e of events) {
+    const ms = new Date(e.time).getTime();
+    if (Number.isFinite(ms) && ms > latest) latest = ms;
+  }
+  const now = latest;
   const start = now - windowMs;
   const emptyRow = () => Object.fromEntries(keys.map((k) => [k, 0])) as Record<T, number>;
   const buckets = new Map<number, Record<T, number>>();
@@ -215,7 +223,7 @@ function bucketEvents<T extends string>(
   for (let t = first; t <= now; t += bucketMs) buckets.set(t, emptyRow());
   for (const e of events) {
     const ms = new Date(e.time).getTime();
-    if (ms < start || ms > now) continue;
+    if (!Number.isFinite(ms) || ms < start) continue;
     const slot = Math.floor(ms / bucketMs) * bucketMs;
     const row = buckets.get(slot) ?? emptyRow();
     row[e.key] = (row[e.key] ?? 0) + 1;
