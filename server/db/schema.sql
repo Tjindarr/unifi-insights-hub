@@ -144,5 +144,38 @@ CREATE TABLE IF NOT EXISTS ip_enrichment (
   abuse_fetched_at INTEGER
 );
 
+-- ---- Local threat-feed cache (offline IP / CIDR blocklists) -------------
+-- Populated on a schedule from public feeds (FireHOL, Spamhaus, AbuseIPDB
+-- blacklist, etc). /api/ipinfo consults these before falling back to per-IP
+-- AbuseIPDB /check lookups, which keeps free-tier quota intact.
+CREATE TABLE IF NOT EXISTS threat_feed_ip (
+  ip        TEXT NOT NULL,
+  source    TEXT NOT NULL,
+  added_at  INTEGER NOT NULL,
+  PRIMARY KEY (ip, source)
+);
+CREATE INDEX IF NOT EXISTS idx_tfi_ip ON threat_feed_ip(ip);
+
+CREATE TABLE IF NOT EXISTS threat_feed_cidr (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  cidr       TEXT NOT NULL,
+  start_int  INTEGER NOT NULL,
+  end_int    INTEGER NOT NULL,
+  source     TEXT NOT NULL,
+  added_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tfc_range  ON threat_feed_cidr(start_int, end_int);
+CREATE INDEX IF NOT EXISTS idx_tfc_source ON threat_feed_cidr(source);
+
+CREATE TABLE IF NOT EXISTS threat_feed_meta (
+  source           TEXT PRIMARY KEY,
+  last_updated_at  INTEGER,
+  last_attempt_at  INTEGER,
+  last_error       TEXT,
+  ip_count         INTEGER DEFAULT 0,
+  cidr_count       INTEGER DEFAULT 0
+);
+
+
 
 
