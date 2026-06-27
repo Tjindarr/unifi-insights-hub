@@ -11,6 +11,7 @@ import { clientDetails } from "../syslog/enrichers.ts";
 import type { makeAuth } from "../auth.ts";
 import type { ConfigStore } from "../config.ts";
 import { UnifiManager } from "../unifi/manager.ts";
+import type { ThreatFeedManager } from "../threat/feeds.ts";
 
 type RetentionState = {
   last: null | {
