@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip } from "recharts";
-import { ArrowDown, ArrowUp, Cable, Wifi, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Cable, ShieldAlert, Wifi, X } from "lucide-react";
 
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
@@ -9,12 +10,45 @@ import { clientHistory, clientDpi } from "@/lib/mock-extra";
 import { formatBits, formatBytes, formatTime, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+type ClientDetails = {
+  mac: string;
+  currentIp: string | null;
+  dhcpHostname: string | null;
+  ipHistory: { ip: string; firstSeen: number; lastSeen: number; count: number }[];
+  wifiAuth: {
+    total: number;
+    failures: number;
+    lastFailureAt: number | null;
+    recent: {
+      time: number;
+      event_type: string | null;
+      assoc_status: number | null;
+      auth_failures: number | null;
+      rssi: number | null;
+      reason: string | null;
+      vap: string | null;
+    }[];
+  };
+};
+
 export function ClientDrawer({ id, onClose }: { id: string | null; onClose: () => void }) {
   const client = id ? clients.find((c) => c.id === id) : null;
   const open = !!client;
   const history = client ? clientHistory[client.id] ?? [] : [];
   const dpi = client ? clientDpi[client.id] ?? [] : [];
   const fwEvents = client ? firewallEvents.filter((e) => e.clientMac === client?.mac).slice(0, 12) : [];
+
+  const [details, setDetails] = useState<ClientDetails | null>(null);
+  useEffect(() => {
+    setDetails(null);
+    if (!client?.mac) return;
+    let cancelled = false;
+    fetch(`/api/clients/${encodeURIComponent(client.mac)}/details`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d) setDetails(d as ClientDetails); })
+      .catch(() => { /* offline / preview */ });
+    return () => { cancelled = true; };
+  }, [client?.mac]);
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -83,6 +117,72 @@ export function ClientDrawer({ id, onClose }: { id: string | null; onClose: () =
                         <div className="text-[10px] text-muted-foreground">{a.category}</div>
                       </div>
                       <div className="font-mono text-muted-foreground">{formatBytes(a.rx + a.tx)}</div>
+                    </li>
+                  ))}
+                </ul>
+              </Section>
+            )}
+
+
+            {details && (details.wifiAuth.total > 0 || details.wifiAuth.failures > 0) && (
+              <Section title="Wi-Fi auth events (from syslog)">
+                <div className="grid grid-cols-3 gap-2 mb-2 text-xs">
+                  <Tile label="Total" value={details.wifiAuth.total} />
+                  <Tile
+                    label="Failures"
+                    value={
+                      <span className={details.wifiAuth.failures > 0 ? "text-severity-error" : ""}>
+                        {details.wifiAuth.failures}
+                      </span>
+                    }
+                  />
+                  <Tile
+                    label="Last failure"
+                    value={details.wifiAuth.lastFailureAt ? relativeTime(details.wifiAuth.lastFailureAt) : "—"}
+                  />
+                </div>
+                {details.wifiAuth.recent.length > 0 && (
+                  <ul className="divide-y divide-border">
+                    {details.wifiAuth.recent.slice(0, 8).map((e, i) => (
+                      <li key={i} className="py-1.5 text-xs flex items-center gap-2">
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded text-[10px] uppercase font-medium flex items-center gap-1",
+                          e.event_type === "failure"
+                            ? "bg-severity-error/15 text-severity-error"
+                            : "bg-chart-2/15 text-chart-2",
+                        )}>
+                          {e.event_type === "failure" && <ShieldAlert className="h-3 w-3" />}
+                          {e.event_type ?? "event"}
+                        </span>
+                        <span className="font-mono text-[10px] text-muted-foreground">{e.vap ?? ""}</span>
+                        <span className="text-muted-foreground truncate flex-1">
+                          {e.reason ?? (e.assoc_status != null ? `assoc=${e.assoc_status}` : "")}
+                          {e.rssi != null ? `  ·  ${e.rssi} dBm` : ""}
+                          {e.auth_failures ? `  ·  ${e.auth_failures} fail` : ""}
+                        </span>
+                        <span className="text-muted-foreground tabular-nums">{relativeTime(e.time)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Section>
+            )}
+
+            {details && details.ipHistory.length > 0 && (
+              <Section title={`IP history (${details.ipHistory.length})`}>
+                {details.dhcpHostname && (
+                  <div className="text-[11px] text-muted-foreground mb-1.5">
+                    DHCP hostname: <span className="font-mono text-foreground">{details.dhcpHostname}</span>
+                  </div>
+                )}
+                <ul className="divide-y divide-border">
+                  {details.ipHistory.slice(0, 8).map((h) => (
+                    <li key={h.ip} className="py-1.5 text-xs flex items-center gap-2">
+                      <span className="font-mono">{h.ip}</span>
+                      <span className="text-muted-foreground flex-1 truncate">
+                        seen {h.count}× · first {relativeTime(h.firstSeen)}
+                      </span>
+                      <span className="text-muted-foreground tabular-nums">{relativeTime(h.lastSeen)}</span>
                     </li>
                   ))}
                 </ul>

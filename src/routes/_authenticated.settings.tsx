@@ -27,6 +27,7 @@ type Settings = {
     intervalMin: number;
     vacuumHours: number;
   };
+  noiseFilter: { enabled: boolean; action: "drop" | "downgrade"; patterns: string[] };
   unifiStatus?: UnifiStatus;
 };
 
@@ -52,8 +53,13 @@ function SettingsPage() {
     retentionDays: 30, retentionFirewallDays: 30,
     maxDbMb: 2048, intervalMin: 60, vacuumHours: 24,
   });
+  const [noiseForm, setNoiseForm] = useState<{
+    enabled: boolean; action: "drop" | "downgrade"; patternsText: string;
+  }>({ enabled: true, action: "drop", patternsText: "" });
   const [savingUnifi, setSavingUnifi] = useState(false);
   const [savingRet, setSavingRet] = useState(false);
+  const [savingNoise, setSavingNoise] = useState(false);
+  const [noiseMsg, setNoiseMsg] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null);
   const [unifiMsg, setUnifiMsg] = useState<string | null>(null);
@@ -76,6 +82,13 @@ function SettingsPage() {
           enabled: !!s.unifi.enabled,
         });
         setRetForm({ ...s.retention });
+        if (s.noiseFilter) {
+          setNoiseForm({
+            enabled: !!s.noiseFilter.enabled,
+            action: s.noiseFilter.action === "downgrade" ? "downgrade" : "drop",
+            patternsText: (s.noiseFilter.patterns ?? []).join("\n"),
+          });
+        }
       }
       if (r) setRetention(r);
     } catch { /* preview mode */ }
@@ -156,6 +169,27 @@ function SettingsPage() {
         setRetention((d) => (d ? { ...d, last: j.last, db: j.db } : d));
       }
     } finally { setBusy(false); }
+  }
+
+  async function saveNoise() {
+    setSavingNoise(true); setNoiseMsg(null);
+    try {
+      const patterns = noiseForm.patternsText
+        .split("\n").map((s) => s.trim()).filter(Boolean);
+      const r = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          noiseFilter: { enabled: noiseForm.enabled, action: noiseForm.action, patterns },
+        }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const j = (await r.json()) as Settings;
+      setSettings(j);
+      setNoiseMsg("Saved. Applied to incoming syslog.");
+    } catch (err) {
+      setNoiseMsg("Save failed: " + (err instanceof Error ? err.message : String(err)));
+    } finally { setSavingNoise(false); }
   }
 
   const status = settings?.unifiStatus;
@@ -306,7 +340,50 @@ function SettingsPage() {
           </p>
         </section>
 
-        {/* ---- Install ---- */}
+        {/* ---- Noise filter ---- */}
+        <section className="rounded-lg border border-border bg-card p-5">
+          <h2 className="text-sm font-medium">Syslog noise filter</h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Built-in defaults already strip the very chatty UDR housekeeping lines
+            (<code className="font-mono">_udapi_lu_set_inform_interval</code>,{" "}
+            <code className="font-mono">smp-affinity-monitor</code>, WiFi IRQ affinity, periodic STA stat dumps).
+            Add your own JavaScript regex patterns below, one per line.
+          </p>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={noiseForm.enabled}
+                onChange={(e) => setNoiseForm((f) => ({ ...f, enabled: e.target.checked }))} />
+              Enable noise filter
+            </label>
+            <Field label="Action for matched lines">
+              <select className="input"
+                value={noiseForm.action}
+                onChange={(e) => setNoiseForm((f) => ({ ...f, action: e.target.value as "drop" | "downgrade" }))}>
+                <option value="drop">Drop (don't store)</option>
+                <option value="downgrade">Downgrade to debug (keep, hide by default)</option>
+              </select>
+            </Field>
+          </div>
+
+          <div className="mt-3">
+            <Field label="Additional regex patterns (one per line)">
+              <textarea className="input" rows={4}
+                placeholder={"e.g. mcad\\[\\d+\\]: ubnt_lr_recv\nntpd\\[\\d+\\]: Listen normally"}
+                value={noiseForm.patternsText}
+                onChange={(e) => setNoiseForm((f) => ({ ...f, patternsText: e.target.value }))} />
+            </Field>
+          </div>
+
+          <div className="mt-4 flex items-center gap-2">
+            <button onClick={saveNoise} disabled={savingNoise}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs bg-primary/10 hover:bg-primary/20 disabled:opacity-50">
+              <Save className="h-3.5 w-3.5" /> Save filter
+            </button>
+            {noiseMsg && <span className="text-[11px] text-muted-foreground">{noiseMsg}</span>}
+          </div>
+        </section>
+
         <section className="rounded-lg border border-border bg-card p-5">
           <h2 className="text-sm font-medium">Unraid install</h2>
           <p className="text-xs text-muted-foreground mt-1">

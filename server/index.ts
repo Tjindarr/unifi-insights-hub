@@ -25,6 +25,12 @@ import {
 } from "./db/queries.ts";
 import { parseSyslog } from "./syslog/parser.ts";
 import { extractFirewall } from "./syslog/unifi-firewall.ts";
+import {
+  applyNoiseFilter,
+  extract as extractEnrichments,
+  makeEnricherInserts,
+  pruneEnrichmentsOlderThan,
+} from "./syslog/enrichers.ts";
 import { UnifiManager } from "./unifi/manager.ts";
 import { makeAuth } from "./auth.ts";
 import { registerApi } from "./api/routes.ts";
@@ -45,6 +51,11 @@ const config = new ConfigStore(CONFIG_PATH);
 const db = openDb(DB_PATH);
 const insertSyslog = makeSyslogInsert(db);
 const insertFirewall = makeFirewallInsert(db);
+const enrichers = makeEnricherInserts(db);
+
+// counters for /api/collector
+const counters = { dropped: 0, downgraded: 0, enriched: 0 };
+export { counters as syslogCounters };
 
 
 // ---- UDP syslog listener ----
@@ -56,6 +67,18 @@ udp.on("message", (buf, rinfo) => {
   const line = buf.toString("utf8");
   try {
     const parsed = parseSyslog(line, rinfo.address);
+
+    // Noise filter — drop or downgrade chatty patterns before they hit the DB.
+    const decision = applyNoiseFilter(parsed, config.get().noiseFilter);
+    if (decision.drop) {
+      counters.dropped++;
+      return;
+    }
+    if (decision.downgradeTo) {
+      parsed.severity = decision.downgradeTo;
+      counters.downgraded++;
+    }
+
     const info = insertSyslog.run({
       time: parsed.time,
       host: parsed.host,
@@ -87,6 +110,13 @@ udp.on("message", (buf, rinfo) => {
         reason: fw.reason,
         raw_json: fw.raw_json,
       });
+    }
+
+    // Enrichments: MAC↔IP, DHCP leases, Wi-Fi auth events
+    const enr = extractEnrichments(parsed);
+    if (enr.staIp || enr.dhcp || enr.wifiAuth) {
+      enrichers.apply(parsed, enr);
+      counters.enriched++;
     }
 
     if (wsClients.size) {
@@ -139,6 +169,8 @@ function runRetention() {
   const bySyslogAge = pruneOlderThan(db, r.retentionDays);
   const byFirewallAge = pruneFirewallOlderThan(db, r.retentionFirewallDays);
   const bySize = pruneToMaxSize(db, r.maxDbMb * 1024 * 1024);
+  // Enrichment tables share the syslog retention window.
+  pruneEnrichmentsOlderThan(db, r.retentionDays);
   const now = Date.now();
   let vacuumed = false;
   if (now - lastVacuum > r.vacuumHours * 3600_000) {

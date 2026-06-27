@@ -7,6 +7,7 @@ import {
   recentFirewall,
   recentSyslog,
 } from "../db/queries.ts";
+import { clientDetails } from "../syslog/enrichers.ts";
 import type { makeAuth } from "../auth.ts";
 import type { ConfigStore } from "../config.ts";
 import { UnifiManager } from "../unifi/manager.ts";
@@ -111,6 +112,7 @@ export async function registerApi(
         retentionDays: number; retentionFirewallDays: number;
         maxDbMb: number; intervalMin: number; vacuumHours: number;
       }>;
+      noiseFilter?: Partial<{ enabled: boolean; action: "drop" | "downgrade"; patterns: string[] }>;
     };
   }>("/api/settings", async (req, reply) => {
     const body = req.body ?? {};
@@ -138,7 +140,15 @@ export async function registerApi(
       r.vacuumHours = clamp(r.vacuumHours, 1, 24 * 30);
       patch.retention = r;
     }
-    if (!patch.unifi && !patch.retention) {
+    if (body.noiseFilter) {
+      const nf = { ...current.noiseFilter, ...body.noiseFilter };
+      nf.action = nf.action === "downgrade" ? "downgrade" : "drop";
+      nf.patterns = Array.isArray(nf.patterns)
+        ? nf.patterns.map((s) => String(s)).filter(Boolean).slice(0, 100)
+        : [];
+      patch.noiseFilter = nf;
+    }
+    if (!patch.unifi && !patch.retention && !patch.noiseFilter) {
       return reply.code(400).send({ ok: false, error: "no changes" });
     }
     config.update(patch);
@@ -190,6 +200,12 @@ export async function registerApi(
     if (!requireLive()) return reply.code(204).send();
     const { mapClients } = await import("../unifi/mappers.ts");
     return mapClients(snap<unknown[]>("unifi_clients_snapshot") ?? []);
+  });
+
+  // Per-client enrichment derived from syslog: MAC↔IP history, DHCP-known
+  // hostname, and Wi-Fi auth-event timeline. Always live from the local DB.
+  app.get<{ Params: { mac: string } }>("/api/clients/:mac/details", async (req) => {
+    return clientDetails(db, req.params.mac);
   });
 
   app.get("/api/devices", async (_req, reply) => {
