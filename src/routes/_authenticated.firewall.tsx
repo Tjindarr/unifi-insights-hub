@@ -8,7 +8,11 @@ import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
 import { useFirewall, useFirewallByMinute } from "@/lib/live";
 import { deauthReasonMap, geoLookup } from "@/lib/mock-extra";
-import { describeFirewallEvent, shortEventLabel } from "@/lib/firewall-format";
+import {
+  describeFirewallEvent,
+  isFirewallRuleEvent,
+  shortEventLabel,
+} from "@/lib/firewall-format";
 import { ccToFlag, externalIp, threatTier, useIpInfo, type IpInfo } from "@/lib/ip-utils";
 import { formatTime, relativeTime } from "@/lib/format";
 import { exportNdjson } from "@/lib/export";
