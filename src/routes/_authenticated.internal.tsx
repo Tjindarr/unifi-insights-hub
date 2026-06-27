@@ -150,7 +150,57 @@ function InternalPage() {
         }
       />
 
-      <div className="p-6">
+      <div className="p-6 space-y-4">
+        <div className="rounded-lg border border-border bg-card">
+          <div className="px-4 pt-3 flex items-center justify-between">
+            <h2 className="text-xs uppercase tracking-wider text-muted-foreground">
+              Events {bucketLabel}
+            </h2>
+            <span className="text-[10px] text-muted-foreground tabular-nums">
+              {windowTotal} in selected window
+            </span>
+          </div>
+          <div className="h-36 p-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={byBucket}>
+                <XAxis
+                  dataKey="t"
+                  tickFormatter={(t) => formatTime(t)}
+                  tick={{ fill: "var(--color-muted-foreground)", fontSize: 10 }}
+                  stroke="var(--color-border)"
+                  minTickGap={50}
+                />
+                <YAxis
+                  tick={{ fill: "var(--color-muted-foreground)", fontSize: 10 }}
+                  stroke="var(--color-border)"
+                  width={30}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-popover)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 6,
+                    fontSize: 11,
+                  }}
+                  labelFormatter={(t) => formatTime(t)}
+                />
+                {CHART_SERIES.map((s) => (
+                  <Bar key={s.key} dataKey={s.key} stackId="a" fill={s.color} name={s.label} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex flex-wrap gap-3 px-4 pb-3 text-[10px] text-muted-foreground">
+            {CHART_SERIES.map((s) => (
+              <span key={s.key} className="inline-flex items-center gap-1.5">
+                <span className="inline-block h-2 w-2 rounded-sm" style={{ background: s.color }} />
+                {s.label}
+                <span className="tabular-nums">({counts[s.key] ?? 0})</span>
+              </span>
+            ))}
+          </div>
+        </div>
+
         <div className="rounded-lg border border-border bg-card overflow-hidden">
           <ul className="divide-y divide-border">
             {rows.map((e) => {
