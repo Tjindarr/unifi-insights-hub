@@ -109,12 +109,24 @@ export function parseSyslog(line: string, fallbackHost = "unknown", opts: ParseO
   const dupHost = new RegExp(`^${escHost}\\s+`);
   if (dupHost.test(rest)) rest = rest.replace(dupHost, "");
 
+  // UniFi APs/switches prefix every line with "<mac>,<model>-<fw+build>: " — a
+  // device identity tag, not the real program. Strip it so the actual appname
+  // (wevent, stahtd, hostapd, ...) gets parsed below.
+  const apTag = rest.match(/^([0-9a-f]{12}),([A-Za-z0-9.+_-]+):\s+/i);
+  if (apTag) rest = rest.slice(apTag[0].length);
+
   // appname — supports "name", "name[pid]", and "mac,model-version" forms; ends at ": "
   let appname = "";
   const appMatch = rest.match(/^([^\s:]+?)(?:\[\d+\])?\s*:\s+/);
   if (appMatch) {
     appname = appMatch[1];
     rest = rest.slice(appMatch[0].length);
+  }
+
+  // UniFi CEF events ("CEF:0|Ubiquiti|UniFi Network|...") — no <pri>, no
+  // standard appname/colon separator. Recognise and tag explicitly.
+  if (!appname && /^CEF:\d+\|/.test(rest)) {
+    appname = "unifi-cef";
   }
 
   const message = rest;

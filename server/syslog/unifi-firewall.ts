@@ -38,6 +38,29 @@ const DEAUTH_REASONS: Record<string, string> = {
 export function extractFirewall(message: string, appname: string): FirewallFields {
   const result: FirewallFields = { ...EMPTY };
 
+  // UniFi CEF events (appname=unifi-cef) — "WiFi Client Connected" etc.
+  if (appname === "unifi-cef" || /^CEF:\d+\|Ubiquiti/.test(message)) {
+    const header = message.split("|");
+    const eventName = header[5] ?? "UniFi event";
+    const kv: Record<string, string> = {};
+    // Capture "key=value" pairs up to the next " UNIFI" / " msg=" boundary
+    const re = /\b(UNIFI[A-Za-z]+|msg)=([^=]+?)(?=\s+(?:UNIFI[A-Za-z]+|msg)=|$)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(message)) !== null) kv[m[1]] = m[2].trim();
+    result.rule = "UNIFI-CEF";
+    result.event_type = eventName.toLowerCase().replace(/\s+/g, "_");
+    result.message_type = "UNIFI_CEF";
+    result.action = /disconnect|fail|block/i.test(eventName) ? "failure" : "success";
+    result.client_mac = (kv.UNIFIclientMac || "").toLowerCase() || null;
+    result.src_ip = kv.UNIFIclientIp || null;
+    result.vap = kv.UNIFIwifiName ? `${kv.UNIFIwifiName} (${kv.UNIFIwifiBand ?? "?"})` : null;
+    result.rssi = kv.UNIFIWiFiRssi ? Number(kv.UNIFIWiFiRssi) : null;
+    result.reason = kv.msg || eventName;
+    result.raw_json = JSON.stringify(kv);
+    return result;
+  }
+
+
   // STA-tracker / wifi assoc JSON blob
   const jsonStart = message.indexOf("{");
   if (jsonStart >= 0 && /STA[-_]TRACKER|STA_ASSOC|stahtd/.test(message + appname)) {
