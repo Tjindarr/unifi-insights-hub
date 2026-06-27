@@ -68,6 +68,9 @@ function defaults(): AppConfig {
       action: (env("NOISE_FILTER_ACTION", "drop") === "downgrade" ? "downgrade" : "drop"),
       patterns: [],
     },
+    threatIntel: {
+      abuseIpdbKey: env("ABUSEIPDB_KEY", env("ABUSEIPDB_API_KEY", "")) ?? "",
+    },
     sessionSecret: env("SESSION_SECRET", "") ?? "",
   };
 }
@@ -77,6 +80,7 @@ function merge(base: AppConfig, patch: Partial<AppConfig>): AppConfig {
     unifi: { ...base.unifi, ...(patch.unifi ?? {}) },
     retention: { ...base.retention, ...(patch.retention ?? {}) },
     noiseFilter: { ...base.noiseFilter, ...(patch.noiseFilter ?? {}) },
+    threatIntel: { ...base.threatIntel, ...(patch.threatIntel ?? {}) },
     sessionSecret: patch.sessionSecret || base.sessionSecret,
   };
 }
