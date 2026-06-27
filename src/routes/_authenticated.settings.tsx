@@ -28,8 +28,26 @@ type Settings = {
     vacuumHours: number;
   };
   noiseFilter: { enabled: boolean; action: "drop" | "downgrade"; patterns: string[] };
-  threatIntel?: { hasAbuseIpdbKey: boolean };
+  threatIntel?: {
+    hasAbuseIpdbKey: boolean;
+    feeds?: Record<string, boolean>;
+    checkOnMiss?: boolean;
+  };
   unifiStatus?: UnifiStatus;
+};
+
+type FeedStatus = {
+  id: string;
+  name: string;
+  description: string;
+  requiresKey: boolean;
+  enabled: boolean;
+  intervalHours: number;
+  lastUpdatedAt: number | null;
+  lastAttemptAt: number | null;
+  lastError: string | null;
+  ipCount: number;
+  cidrCount: number;
 };
 
 type RetentionInfo = {
