@@ -135,13 +135,44 @@ export function recentSyslog(
   return db.prepare(sql).all(params);
 }
 
+// SQL fragment that mirrors `isInternalEvent` on the frontend.
+// Matches STA-tracker, Wi-Fi auth / assoc / roam, and UniFi system events
+// that lack both IPs and a LAN_/WAN_/GUEST_ rule prefix.
+const INTERNAL_WHERE = `(
+  message_type LIKE 'STA\\_%' ESCAPE '\\'
+  OR lower(coalesce(event_type,'')) GLOB '*assoc*'
+  OR lower(coalesce(event_type,'')) GLOB '*leave*'
+  OR lower(coalesce(event_type,'')) GLOB '*deauth*'
+  OR lower(coalesce(event_type,'')) GLOB '*auth*'
+  OR lower(coalesce(event_type,'')) GLOB '*roam*'
+  OR lower(coalesce(event_type,'')) GLOB '*connect*'
+  OR lower(coalesce(event_type,'')) GLOB '*disconnect*'
+  OR (
+    src_ip IS NULL AND dst_ip IS NULL
+    AND (rule IS NULL OR (
+      rule NOT LIKE 'LAN\\_%' ESCAPE '\\'
+      AND rule NOT LIKE 'WAN\\_%' ESCAPE '\\'
+      AND rule NOT LIKE 'GUEST\\_%' ESCAPE '\\'
+    ))
+  )
+)`;
+
 export function recentFirewall(
   db: Database.Database,
-  opts: { action?: string; clientMac?: string; q?: string; limit?: number; since?: number },
+  opts: {
+    action?: string;
+    clientMac?: string;
+    q?: string;
+    limit?: number;
+    since?: number;
+    kind?: "internal" | "firewall";
+  },
 ) {
   const limit = Math.min(opts.limit ?? 500, 200000);
   const where: string[] = [];
   const params: Record<string, unknown> = {};
+  if (opts.kind === "internal") where.push(INTERNAL_WHERE);
+  else if (opts.kind === "firewall") where.push(`NOT ${INTERNAL_WHERE}`);
   if (opts.action) {
     where.push("action = @action");
     params.action = opts.action;
