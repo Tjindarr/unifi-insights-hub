@@ -30,7 +30,12 @@ export type NoiseFilterSettings = {
 
 export type ThreatIntelSettings = {
   abuseIpdbKey: string;
+  /** Map of feed id -> enabled. Missing keys fall back to the feed's default. */
+  feeds: Record<string, boolean>;
+  /** When true, fall back to AbuseIPDB /check for IPs not found in any feed. */
+  checkOnMiss: boolean;
 };
+
 
 export type AppConfig = {
   unifi: UnifiSettings;
