@@ -24,11 +24,10 @@ ENV NODE_ENV=production \
     HTTP_PORT=3000 \
     SYSLOG_UDP_PORT=514 \
     DB_PATH=/data/unifi.db \
-    RETENTION_DAYS=30 \
-    RETENTION_FIREWALL_DAYS=30 \
-    RETENTION_MAX_DB_MB=2048 \
-    RETENTION_INTERVAL_MIN=60 \
-    RETENTION_VACUUM_HOURS=24
+    CONFIG_PATH=/data/config.json
+# All other settings (UniFi creds, retention policy, session secret) live in
+# /data/config.json and are managed from the Settings page in the UI.
+
 
 VOLUME ["/data"]
 EXPOSE 3000/tcp

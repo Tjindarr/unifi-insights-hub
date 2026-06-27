@@ -6,16 +6,11 @@ import {
   getSnapshot,
   recentFirewall,
   recentSyslog,
-} from "./db/queries.ts";
-import type { makeAuth } from "./auth.ts";
+} from "../db/queries.ts";
+import type { makeAuth } from "../auth.ts";
+import type { ConfigStore } from "../config.ts";
+import { UnifiManager } from "../unifi/manager.ts";
 
-type RetentionConfig = {
-  retentionDays: number;
-  retentionFirewallDays: number;
-  maxDbMb: number;
-  intervalMin: number;
-  vacuumHours: number;
-};
 type RetentionState = {
   last: null | {
     at: number;
@@ -27,33 +22,31 @@ type RetentionState = {
     vacuumed: boolean;
   };
 };
+
 type Deps = {
   db: Database.Database;
   auth: ReturnType<typeof makeAuth>;
-  retention: { config: RetentionConfig; state: RetentionState; run: () => void };
+  config: ConfigStore;
+  unifi: UnifiManager;
+  retention: { state: RetentionState; run: () => void };
 };
 
-export async function registerApi(app: FastifyInstance, { db, auth, retention }: Deps) {
+export async function registerApi(
+  app: FastifyInstance,
+  { db, auth, config, unifi, retention }: Deps,
+) {
   // ---- auth ----
   app.post<{ Body: { username: string; password: string } }>("/api/login", async (req, reply) => {
     const { username, password } = req.body ?? ({} as Record<string, string>);
     if (!username || !password) return reply.code(400).send({ ok: false });
     const result = auth.checkCredentials(username, password);
-    if (!result.ok) {
-      return reply.code(401).send({ ok: false });
-    }
+    if (!result.ok) return reply.code(401).send({ ok: false });
     const cookie = auth.issueCookie();
     reply.setCookie(auth.cookieName, cookie, {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
+      path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 7,
     });
     reply.setCookie("unifi_user", username, {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
+      path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 7,
     });
     return { ok: true, mustChange: result.mustChange };
   });
@@ -84,26 +77,90 @@ export async function registerApi(app: FastifyInstance, { db, auth, retention }:
 
   app.addHook("preHandler", async (req, reply) => {
     if (!req.url.startsWith("/api/")) return;
-    if (req.url === "/api/login" || req.url === "/api/health" || req.url === "/api/change-password") return;
+    if (
+      req.url === "/api/login" ||
+      req.url === "/api/health" ||
+      req.url === "/api/change-password"
+    ) return;
     const cookie = (req.cookies as Record<string, string | undefined>)[auth.cookieName];
     if (!auth.verifyCookie(cookie)) return reply.code(401).send({ ok: false, error: "unauthorized" });
   });
 
-  // Liveness probe — used by Docker HEALTHCHECK. Always returns DB stats so a
-  // single curl tells you "is the container alive and is the DB sane?".
+  // Liveness probe — used by Docker HEALTHCHECK.
   app.get("/api/health", async () => {
     const stats = dbStats(db);
     return {
       ok: true,
       uptimeSec: Math.round(process.uptime()),
       db: stats,
-      retention: { config: retention.config, last: retention.state.last },
+      retention: { config: config.get().retention, last: retention.state.last },
+      unifi: unifi.getStatus(),
     };
   });
 
+  // ---- Settings (persistent config in /data/config.json) ----
+  app.get("/api/settings", async () => ({
+    ...config.publicView(),
+    unifiStatus: unifi.getStatus(),
+  }));
+
+  app.put<{
+    Body: {
+      unifi?: Partial<{ host: string; user: string; password: string; site: string; enabled: boolean }>;
+      retention?: Partial<{
+        retentionDays: number; retentionFirewallDays: number;
+        maxDbMb: number; intervalMin: number; vacuumHours: number;
+      }>;
+    };
+  }>("/api/settings", async (req, reply) => {
+    const body = req.body ?? {};
+    const current = config.get();
+    const patch: Parameters<typeof config.update>[0] = {};
+    if (body.unifi) {
+      patch.unifi = {
+        ...current.unifi,
+        ...body.unifi,
+        // Empty-string password from the form means "leave existing password"
+        password:
+          body.unifi.password === undefined || body.unifi.password === ""
+            ? current.unifi.password
+            : body.unifi.password,
+      };
+    }
+    if (body.retention) {
+      const r = { ...current.retention, ...body.retention };
+      const clamp = (n: number, min: number, max: number) =>
+        Math.min(max, Math.max(min, Math.floor(Number(n) || 0)));
+      r.retentionDays = clamp(r.retentionDays, 0, 3650);
+      r.retentionFirewallDays = clamp(r.retentionFirewallDays, 0, 3650);
+      r.maxDbMb = clamp(r.maxDbMb, 16, 1024 * 1024);
+      r.intervalMin = clamp(r.intervalMin, 1, 1440);
+      r.vacuumHours = clamp(r.vacuumHours, 1, 24 * 30);
+      patch.retention = r;
+    }
+    if (!patch.unifi && !patch.retention) {
+      return reply.code(400).send({ ok: false, error: "no changes" });
+    }
+    config.update(patch);
+    return { ok: true, ...config.publicView(), unifiStatus: unifi.getStatus() };
+  });
+
+  // One-shot connection test (uses the form values, not the saved ones).
+  app.post<{ Body: { host: string; user: string; password: string; site?: string } }>(
+    "/api/settings/test-unifi",
+    async (req) => {
+      const { host, user, password, site } = req.body ?? ({} as Record<string, string>);
+      if (!host || !user) return { ok: false, error: "host and user required" };
+      // Empty password = use saved one
+      const effective = password || config.get().unifi.password;
+      if (!effective) return { ok: false, error: "password required" };
+      return UnifiManager.test({ host, user, password: effective, site: site || "default" });
+    },
+  );
+
   // Read current retention policy + last run summary.
   app.get("/api/retention", async () => ({
-    config: retention.config,
+    config: config.get().retention,
     last: retention.state.last,
     db: dbStats(db),
   }));
@@ -124,31 +181,17 @@ export async function registerApi(app: FastifyInstance, { db, auth, retention }:
     const totalRx = clients.reduce((a, c) => a + Number(c.rx_rate ?? c["rx-rate"] ?? 0), 0);
     const totalTx = clients.reduce((a, c) => a + Number(c.tx_rate ?? c["tx-rate"] ?? 0), 0);
     const satAvg = clients.length
-      ? Math.round(
-          clients.reduce((a, c) => a + Number(c.satisfaction ?? 100), 0) / clients.length,
-        )
+      ? Math.round(clients.reduce((a, c) => a + Number(c.satisfaction ?? 100), 0) / clients.length)
       : 100;
     return {
-      totalClients: clients.length,
-      wired,
-      wireless,
-      avgSatisfaction: satAvg,
-      currentRx: totalRx,
-      currentTx: totalTx,
+      totalClients: clients.length, wired, wireless,
+      avgSatisfaction: satAvg, currentRx: totalRx, currentTx: totalTx,
     };
   });
 
-  app.get("/api/clients", async () => {
-    return getSnapshot(db, "unifi_clients_snapshot") ?? [];
-  });
-
-  app.get("/api/devices", async () => {
-    return getSnapshot(db, "unifi_devices_snapshot") ?? [];
-  });
-
-  app.get("/api/health-snapshot", async () => {
-    return getSnapshot(db, "unifi_health_snapshot") ?? [];
-  });
+  app.get("/api/clients", async () => getSnapshot(db, "unifi_clients_snapshot") ?? []);
+  app.get("/api/devices", async () => getSnapshot(db, "unifi_devices_snapshot") ?? []);
+  app.get("/api/health-snapshot", async () => getSnapshot(db, "unifi_health_snapshot") ?? []);
 
   // ---- logs ----
   app.get<{
