@@ -137,9 +137,9 @@ export function recentSyslog(
 
 export function recentFirewall(
   db: Database.Database,
-  opts: { action?: string; clientMac?: string; q?: string; limit?: number },
+  opts: { action?: string; clientMac?: string; q?: string; limit?: number; since?: number },
 ) {
-  const limit = Math.min(opts.limit ?? 500, 5000);
+  const limit = Math.min(opts.limit ?? 500, 200000);
   const where: string[] = [];
   const params: Record<string, unknown> = {};
   if (opts.action) {
@@ -154,11 +154,35 @@ export function recentFirewall(
     where.push("(rule LIKE @like OR client_mac LIKE @like OR vap LIKE @like OR raw_json LIKE @like)");
     params.like = `%${opts.q}%`;
   }
+  if (opts.since != null) {
+    where.push("time >= @since");
+    params.since = opts.since;
+  }
   const sql = `
     SELECT * FROM firewall_events
     ${where.length ? "WHERE " + where.join(" AND ") : ""}
     ORDER BY time DESC LIMIT ${limit}`;
   return db.prepare(sql).all(params);
+}
+
+// Aggregate firewall events into time buckets — used by the chart so the
+// "events per minute" view spans the entire selected window, regardless of
+// how many rows the table fetches.
+export function firewallBuckets(
+  db: Database.Database,
+  opts: { since: number; bucketMs: number },
+): { t: number; success: number; failure: number }[] {
+  const rows = db.prepare(`
+    SELECT
+      (time / @bucket) * @bucket AS t,
+      SUM(CASE WHEN action = 'failure' THEN 1 ELSE 0 END) AS failure,
+      SUM(CASE WHEN action != 'failure' THEN 1 ELSE 0 END) AS success
+    FROM firewall_events
+    WHERE time >= @since
+    GROUP BY t
+    ORDER BY t ASC
+  `).all({ since: opts.since, bucket: opts.bucketMs }) as { t: number; success: number; failure: number }[];
+  return rows;
 }
 
 export function setSnapshot(db: Database.Database, table: string, json: unknown) {
