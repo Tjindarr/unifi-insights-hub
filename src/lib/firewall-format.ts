@@ -123,3 +123,46 @@ export function describeFirewallEvent(e: FirewallEvent): string {
 export function shortEventLabel(e: FirewallEvent): string {
   return EVENT_TYPE_LABEL[e.eventType ?? ""] ?? e.action;
 }
+
+/**
+ * True when the event is an internal device / Wi-Fi / auth event
+ * (STA-TRACKER, association, deauth, auth success/failure, roam, etc.)
+ * rather than an iptables firewall-rule hit.
+ */
+export function isInternalEvent(e: FirewallEvent): boolean {
+  if (e.messageType?.startsWith("STA_")) return true;
+  if (/assoc|leave|deauth|auth|roam|connect|disconnect/i.test(e.eventType ?? "")) return true;
+  if (!e.srcIp && !e.dstIp && !/^(LAN_|WAN_|GUEST_)/i.test(e.rule ?? "")) {
+    // Many UniFi system events have neither IPs nor a rule prefix.
+    return true;
+  }
+  return false;
+}
+
+/** True when the event came from an iptables / UniFi firewall rule. */
+export function isFirewallRuleEvent(e: FirewallEvent): boolean {
+  return !isInternalEvent(e);
+}
+
+/** Categorise internal events for filtering chips. */
+export type InternalCategory =
+  | "connect"
+  | "disconnect"
+  | "auth-success"
+  | "auth-failure"
+  | "roam"
+  | "other";
+
+export function internalCategory(e: FirewallEvent): InternalCategory {
+  const t = (e.eventType ?? "").toLowerCase();
+  const m = (e.messageType ?? "").toLowerCase();
+  if (e.action === "failure" || /fail/i.test(t)) return "auth-failure";
+  if (t === "success" || t === "sta_auth_success") return "auth-success";
+  if (t.includes("roam")) return "roam";
+  if (t.includes("assoc") || m.includes("assoc")) return "connect";
+  if (t.includes("leave") || t.includes("disconnect") || t.includes("deauth") || m.includes("leave")) {
+    return "disconnect";
+  }
+  return "other";
+}
+
