@@ -25,6 +25,7 @@ import {
 } from "./db/queries.ts";
 import { parseSyslog } from "./syslog/parser.ts";
 import { extractFirewall } from "./syslog/unifi-firewall.ts";
+import { recordParse } from "./syslog/parse-health.ts";
 import {
   applyNoiseFilter,
   extract as extractEnrichments,
