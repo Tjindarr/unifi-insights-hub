@@ -19,6 +19,40 @@ export type Client = {
   txBytes: number; // total
   lastSeen: string; // ISO
   manufacturer: string;
+  // Extended UniFi attributes (optional — populated when available)
+  alias?: string;
+  note?: string;
+  firstSeen?: string;
+  uptime?: number;
+  ip6?: string;
+  essid?: string;
+  networkId?: string;
+  channel?: number;
+  radio?: string;
+  radioProto?: string;
+  band?: "2.4" | "5" | "6" | "—";
+  noise?: number;
+  snr?: number;
+  ccq?: number;
+  txPower?: number;
+  txRetries?: number;
+  anomalies?: number;
+  linkTxRate?: number;
+  linkRxRate?: number;
+  switchMac?: string;
+  switchPort?: number;
+  uplinkMac?: string;
+  assocTime?: number;
+  idleTime?: number;
+  authorized?: boolean;
+  isGuest?: boolean;
+  blocked?: boolean;
+  fixedIp?: string;
+  usergroupId?: string;
+  deviceFamily?: string;
+  osName?: string;
+  powersaveEnabled?: boolean;
+  qosPolicyApplied?: boolean;
 };
 
 export type SyslogEntry = {

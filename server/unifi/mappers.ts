@@ -25,12 +25,45 @@ export type MappedClient = {
   vlan: string;
   signal: number;
   satisfaction: number;
-  rxRate: number; // bytes/sec
+  rxRate: number;
   txRate: number;
   rxBytes: number;
   txBytes: number;
   lastSeen: string;
   manufacturer: string;
+  alias?: string;
+  note?: string;
+  firstSeen?: string;
+  uptime?: number;
+  ip6?: string;
+  essid?: string;
+  networkId?: string;
+  channel?: number;
+  radio?: string;
+  radioProto?: string;
+  band?: "2.4" | "5" | "6" | "—";
+  noise?: number;
+  snr?: number;
+  ccq?: number;
+  txPower?: number;
+  txRetries?: number;
+  anomalies?: number;
+  linkTxRate?: number;
+  linkRxRate?: number;
+  switchMac?: string;
+  switchPort?: number;
+  uplinkMac?: string;
+  assocTime?: number;
+  idleTime?: number;
+  authorized?: boolean;
+  isGuest?: boolean;
+  blocked?: boolean;
+  fixedIp?: string;
+  usergroupId?: string;
+  deviceFamily?: string;
+  osName?: string;
+  powersaveEnabled?: boolean;
+  qosPolicyApplied?: boolean;
 };
 
 export function mapClient(c: Raw): MappedClient {
@@ -40,19 +73,26 @@ export function mapClient(c: Raw): MappedClient {
     : str(c.ap_name ?? c.essid ?? c.ap_mac, "wifi");
   const rxBytes = num(c.rx_bytes ?? c["rx-bytes"]);
   const txBytes = num(c.tx_bytes ?? c["tx-bytes"]);
-  // UniFi reports rx-rate/tx-rate in Kbps for wireless, raw bps for wired.
-  // Normalize to bytes/sec to match mock.
   const rxKbps = num(c.rx_rate ?? c["rx-rate"]);
   const txKbps = num(c.tx_rate ?? c["tx-rate"]);
+  const radioRaw = str(c.radio);
+  const band: MappedClient["band"] =
+    radioRaw === "ng" ? "2.4" : radioRaw === "na" ? "5" : radioRaw === "6e" ? "6" : "—";
+  const alias = str(c.name ?? c.note_alias ?? "") || undefined;
+  const hostname =
+    alias ||
+    str(c.hostname ?? c.display_name ?? c.dhcpend_hostname ?? c.mac, "unknown");
+  const signal = wired ? 0 : num(c.signal ?? c.rssi);
+  const noise = c.noise != null ? num(c.noise) : undefined;
   return {
     id: str(c._id ?? c.mac, str(c.mac)),
-    hostname: str(c.hostname ?? c.name ?? c.display_name ?? c.mac, "unknown"),
+    hostname,
     mac: str(c.mac),
     ip: str(c.ip ?? c.last_ip ?? "—"),
     wired,
     ap,
     vlan: str(c.network ?? c.network_name ?? "LAN"),
-    signal: wired ? 0 : num(c.signal ?? c.rssi),
+    signal,
     satisfaction: num(c.satisfaction ?? 100, 100),
     rxRate: Math.floor((rxKbps * 1000) / 8),
     txRate: Math.floor((txKbps * 1000) / 8),
@@ -60,6 +100,39 @@ export function mapClient(c: Raw): MappedClient {
     txBytes,
     lastSeen: new Date(num(c.last_seen) * 1000 || Date.now()).toISOString(),
     manufacturer: str(c.oui ?? c.fingerprint?.dev_vendor ?? "Unknown"),
+    alias,
+    note: str(c.note ?? "") || undefined,
+    firstSeen: c.first_seen ? new Date(num(c.first_seen) * 1000).toISOString() : undefined,
+    uptime: c.uptime != null ? num(c.uptime) : undefined,
+    ip6: str(c.ipv6 ?? "") || undefined,
+    essid: str(c.essid ?? "") || undefined,
+    networkId: str(c.network_id ?? "") || undefined,
+    channel: c.channel != null ? num(c.channel) : undefined,
+    radio: radioRaw || undefined,
+    radioProto: str(c.radio_proto ?? "") || undefined,
+    band,
+    noise,
+    snr: !wired && signal && noise ? Math.abs(noise) - Math.abs(signal) : undefined,
+    ccq: c.ccq != null ? num(c.ccq) : undefined,
+    txPower: c.tx_power != null ? num(c.tx_power) : undefined,
+    txRetries: c.tx_retries != null ? num(c.tx_retries) : undefined,
+    anomalies: c.anomalies != null ? num(c.anomalies) : undefined,
+    linkTxRate: c.tx_rate != null ? num(c.tx_rate) * 1000 : undefined,
+    linkRxRate: c.rx_rate != null ? num(c.rx_rate) * 1000 : undefined,
+    switchMac: str(c.sw_mac ?? "") || undefined,
+    switchPort: c.sw_port != null ? num(c.sw_port) : undefined,
+    uplinkMac: str(c.uplink_mac ?? "") || undefined,
+    assocTime: c.assoc_time != null ? num(c.assoc_time) : undefined,
+    idleTime: c.idletime != null ? num(c.idletime) : undefined,
+    authorized: c.authorized != null ? !!c.authorized : undefined,
+    isGuest: c.is_guest != null ? !!c.is_guest : undefined,
+    blocked: c.blocked != null ? !!c.blocked : undefined,
+    fixedIp: str(c.fixed_ip ?? "") || undefined,
+    usergroupId: str(c.usergroup_id ?? "") || undefined,
+    deviceFamily: str(c.fingerprint?.dev_family ?? c.dev_family ?? "") || undefined,
+    osName: str(c.fingerprint?.os_name ?? c.os_name ?? "") || undefined,
+    powersaveEnabled: c.powersave_enabled != null ? !!c.powersave_enabled : undefined,
+    qosPolicyApplied: c.qos_policy_applied != null ? !!c.qos_policy_applied : undefined,
   };
 }
 
