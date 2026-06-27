@@ -462,15 +462,16 @@ export async function registerApi(
 
   // ---- firewall ----
   app.get<{
-    Querystring: { q?: string; action?: string; mac?: string; limit?: string; since?: string };
+    Querystring: { q?: string; action?: string; mac?: string; limit?: string; since?: string; kind?: string };
   }>("/api/firewall", async (req) => {
-    const { q, action, mac, limit, since } = req.query;
+    const { q, action, mac, limit, since, kind } = req.query;
     return recentFirewall(db, {
       q: q || undefined,
       action: action || undefined,
       clientMac: mac || undefined,
       limit: limit ? Number(limit) : 500,
       since: since ? Number(since) : undefined,
+      kind: kind === "internal" || kind === "firewall" ? kind : undefined,
     });
   });
 
