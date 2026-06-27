@@ -84,6 +84,10 @@ CREATE TABLE IF NOT EXISTS unifi_dpi_catalog_snapshot (
   ts   INTEGER NOT NULL,
   json TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS unifi_speedtest_snapshot (
+  ts   INTEGER NOT NULL,
+  json TEXT NOT NULL
+);
 
 -- ---- Syslog-derived enrichment tables -----------------------------------
 -- MAC ↔ IP history derived from wevent EVENT_STA_IP lines on the APs.
