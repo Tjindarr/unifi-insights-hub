@@ -149,6 +149,7 @@ export async function registerApi(
         feeds: Record<string, boolean>;
         checkOnMiss: boolean;
       }>;
+      syslog?: Partial<{ tzOffsetMinutes: number; useArrivalTime: boolean }>;
     };
   }>("/api/settings", async (req, reply) => {
     const body = req.body ?? {};
