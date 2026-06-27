@@ -23,7 +23,6 @@ import { Route as AuthenticatedLogsRouteImport } from './routes/_authenticated.l
 import { Route as AuthenticatedInternalRouteImport } from './routes/_authenticated.internal'
 import { Route as AuthenticatedFirewallRouteImport } from './routes/_authenticated.firewall'
 import { Route as AuthenticatedEventsRouteImport } from './routes/_authenticated.events'
-import { Route as AuthenticatedDpiRouteImport } from './routes/_authenticated.dpi'
 import { Route as AuthenticatedClientsRouteImport } from './routes/_authenticated.clients'
 
 const LoginRoute = LoginRouteImport.update({
@@ -95,11 +94,6 @@ const AuthenticatedEventsRoute = AuthenticatedEventsRouteImport.update({
   path: '/events',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedDpiRoute = AuthenticatedDpiRouteImport.update({
-  id: '/dpi',
-  path: '/dpi',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 const AuthenticatedClientsRoute = AuthenticatedClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
@@ -111,7 +105,6 @@ export interface FileRoutesByFullPath {
   '/change-password': typeof ChangePasswordRoute
   '/login': typeof LoginRoute
   '/clients': typeof AuthenticatedClientsRoute
-  '/dpi': typeof AuthenticatedDpiRoute
   '/events': typeof AuthenticatedEventsRoute
   '/firewall': typeof AuthenticatedFirewallRoute
   '/internal': typeof AuthenticatedInternalRoute
@@ -127,7 +120,6 @@ export interface FileRoutesByTo {
   '/change-password': typeof ChangePasswordRoute
   '/login': typeof LoginRoute
   '/clients': typeof AuthenticatedClientsRoute
-  '/dpi': typeof AuthenticatedDpiRoute
   '/events': typeof AuthenticatedEventsRoute
   '/firewall': typeof AuthenticatedFirewallRoute
   '/internal': typeof AuthenticatedInternalRoute
@@ -146,7 +138,6 @@ export interface FileRoutesById {
   '/change-password': typeof ChangePasswordRoute
   '/login': typeof LoginRoute
   '/_authenticated/clients': typeof AuthenticatedClientsRoute
-  '/_authenticated/dpi': typeof AuthenticatedDpiRoute
   '/_authenticated/events': typeof AuthenticatedEventsRoute
   '/_authenticated/firewall': typeof AuthenticatedFirewallRoute
   '/_authenticated/internal': typeof AuthenticatedInternalRoute
@@ -166,7 +157,6 @@ export interface FileRouteTypes {
     | '/change-password'
     | '/login'
     | '/clients'
-    | '/dpi'
     | '/events'
     | '/firewall'
     | '/internal'
@@ -182,7 +172,6 @@ export interface FileRouteTypes {
     | '/change-password'
     | '/login'
     | '/clients'
-    | '/dpi'
     | '/events'
     | '/firewall'
     | '/internal'
@@ -200,7 +189,6 @@ export interface FileRouteTypes {
     | '/change-password'
     | '/login'
     | '/_authenticated/clients'
-    | '/_authenticated/dpi'
     | '/_authenticated/events'
     | '/_authenticated/firewall'
     | '/_authenticated/internal'
@@ -320,13 +308,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEventsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/dpi': {
-      id: '/_authenticated/dpi'
-      path: '/dpi'
-      fullPath: '/dpi'
-      preLoaderRoute: typeof AuthenticatedDpiRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/clients': {
       id: '/_authenticated/clients'
       path: '/clients'
@@ -339,7 +320,6 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedClientsRoute: typeof AuthenticatedClientsRoute
-  AuthenticatedDpiRoute: typeof AuthenticatedDpiRoute
   AuthenticatedEventsRoute: typeof AuthenticatedEventsRoute
   AuthenticatedFirewallRoute: typeof AuthenticatedFirewallRoute
   AuthenticatedInternalRoute: typeof AuthenticatedInternalRoute
@@ -355,7 +335,6 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedClientsRoute: AuthenticatedClientsRoute,
-  AuthenticatedDpiRoute: AuthenticatedDpiRoute,
   AuthenticatedEventsRoute: AuthenticatedEventsRoute,
   AuthenticatedFirewallRoute: AuthenticatedFirewallRoute,
   AuthenticatedInternalRoute: AuthenticatedInternalRoute,

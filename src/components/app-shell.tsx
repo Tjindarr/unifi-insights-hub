@@ -15,7 +15,7 @@ import { HealthBanner } from "@/components/health-banner";
 import { CommandPalette } from "@/components/command-palette";
 
 type NavItem = {
-  to: "/" | "/clients" | "/network" | "/wan" | "/topology" | "/dpi" | "/ports"
+  to: "/" | "/clients" | "/network" | "/wan" | "/topology" | "/ports"
     | "/firewall" | "/internal" | "/events" | "/logs" | "/raw" | "/settings";
 
   label: string;
@@ -27,7 +27,7 @@ type NavItem = {
 const nav: NavItem[] = [
   { to: "/",         label: "Overview", icon: LayoutDashboard, exact: true, group: "Monitor" },
   { to: "/clients",  label: "Clients",  icon: Wifi,                          group: "Monitor" },
-  { to: "/dpi",      label: "Apps / DPI", icon: BarChart3,                   group: "Monitor" },
+  
   { to: "/network",  label: "Network",  icon: Activity,                      group: "Network" },
   { to: "/wan",      label: "WAN",      icon: Cable,                         group: "Network" },
   { to: "/topology", label: "Topology", icon: Network,                       group: "Network" },
