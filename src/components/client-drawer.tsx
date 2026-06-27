@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip } from "recharts";
-import { ArrowDown, ArrowUp, Cable, Wifi, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Cable, ShieldAlert, Wifi, X } from "lucide-react";
 
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
@@ -9,12 +10,45 @@ import { clientHistory, clientDpi } from "@/lib/mock-extra";
 import { formatBits, formatBytes, formatTime, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+type ClientDetails = {
+  mac: string;
+  currentIp: string | null;
+  dhcpHostname: string | null;
+  ipHistory: { ip: string; firstSeen: number; lastSeen: number; count: number }[];
+  wifiAuth: {
+    total: number;
+    failures: number;
+    lastFailureAt: number | null;
+    recent: {
+      time: number;
+      event_type: string | null;
+      assoc_status: number | null;
+      auth_failures: number | null;
+      rssi: number | null;
+      reason: string | null;
+      vap: string | null;
+    }[];
+  };
+};
+
 export function ClientDrawer({ id, onClose }: { id: string | null; onClose: () => void }) {
   const client = id ? clients.find((c) => c.id === id) : null;
   const open = !!client;
   const history = client ? clientHistory[client.id] ?? [] : [];
   const dpi = client ? clientDpi[client.id] ?? [] : [];
   const fwEvents = client ? firewallEvents.filter((e) => e.clientMac === client?.mac).slice(0, 12) : [];
+
+  const [details, setDetails] = useState<ClientDetails | null>(null);
+  useEffect(() => {
+    setDetails(null);
+    if (!client?.mac) return;
+    let cancelled = false;
+    fetch(`/api/clients/${encodeURIComponent(client.mac)}/details`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d) setDetails(d as ClientDetails); })
+      .catch(() => { /* offline / preview */ });
+    return () => { cancelled = true; };
+  }, [client?.mac]);
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
