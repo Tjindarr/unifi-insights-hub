@@ -284,7 +284,9 @@ export function useFirewallByMinute(range: TimeRangeKey = "1h") {
     `firewall-buckets:${range}`,
     () => {
       const sinceNow = Math.floor((Date.now() - spec.windowMs) / spec.bucketMs) * spec.bucketMs;
-      return getJson<BucketRow[]>(`/api/firewall/buckets?since=${sinceNow}&bucketMs=${spec.bucketMs}`);
+      return getJson<BucketRow[]>(
+        `/api/firewall/buckets?kind=firewall&since=${sinceNow}&rangeMs=${spec.windowMs}&bucketMs=${spec.bucketMs}`,
+      );
     },
     [],
     15_000,
