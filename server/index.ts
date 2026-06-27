@@ -67,7 +67,7 @@ const udp = createSocket("udp4");
 udp.on("message", (buf, rinfo) => {
   const line = buf.toString("utf8");
   try {
-    const parsed = parseSyslog(line, rinfo.address);
+    const parsed = parseSyslog(line, rinfo.address, config.get().syslog);
 
     // Noise filter — drop or downgrade chatty patterns before they hit the DB.
     const decision = applyNoiseFilter(parsed, config.get().noiseFilter);
