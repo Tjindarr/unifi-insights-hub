@@ -366,16 +366,48 @@ export function mapWan(rawHealth: any, rawDevices: any) {
 
 // ---- Events ----
 
+// Collect all primitive (string/number) fields from a system-log event into a
+// flat case-insensitive lookup we can use to fill `{PLACEHOLDER}` tokens.
+function flattenParams(obj: any, into: Record<string, string> = {}, depth = 0): Record<string, string> {
+  if (!obj || typeof obj !== "object" || depth > 4) return into;
+  for (const [k, v] of Object.entries(obj)) {
+    if (v == null) continue;
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+      const key = String(k).toLowerCase();
+      if (!(key in into)) into[key] = String(v);
+    } else if (typeof v === "object") {
+      // Common nested containers
+      flattenParams(v, into, depth + 1);
+      // If the nested object has a "name"/"value"/"displayName" use that as the key's value too
+      const named = (v as any).name ?? (v as any).displayName ?? (v as any).value;
+      if (named != null && (typeof named === "string" || typeof named === "number")) {
+        const key = String(k).toLowerCase();
+        if (!(key in into)) into[key] = String(named);
+      }
+    }
+  }
+  return into;
+}
+
+function substituteTemplate(tpl: string, params: Record<string, string>): string {
+  if (!tpl || tpl.indexOf("{") < 0) return tpl;
+  return tpl.replace(/\{([A-Za-z0-9_]+)\}/g, (_m, name: string) => {
+    const v = params[name.toLowerCase()];
+    return v != null ? v : `{${name}}`;
+  });
+}
+
 export function mapEvents(rawEvents: any) {
   const evs: Raw[] = arrayFrom(rawEvents);
   return evs.slice(0, 200).map((e, i) => {
-    // system-log entries put the human text in different places per category
+    const params = flattenParams(e);
     const slMsg = str(
       e.message ?? e.readable_message ?? e.eventStringFormatted ?? e.text
         ?? (Array.isArray(e.messageEnums) ? e.messageEnums.join(" ") : ""),
     );
     const key = str(e.key ?? e.event ?? e.type ?? e.subsystem ?? e.category ?? e.__category ?? "");
-    const msg = slMsg || str(e.msg ?? e.description ?? e.name ?? "");
+    const rawMsg = slMsg || str(e.msg ?? e.description ?? e.name ?? "");
+    const msg = substituteTemplate(rawMsg, params);
     const cat = str(e.__category ?? "");
     let kind: "admin" | "wan" | "firmware" | "client" | "system" = "system";
     const haystack = `${cat} ${key} ${msg}`;
@@ -397,6 +429,7 @@ export function mapEvents(rawEvents: any) {
     };
   });
 }
+
 
 
 // ---- DPI ----

@@ -309,6 +309,14 @@ export async function registerApi(
     };
   });
 
+  // Dump the first 2 raw events so we can see exact field names UniFi sends.
+  app.get("/api/_debug/raw-events", async () => {
+    const raw = snap("unifi_events_snapshot") as any;
+    const list = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
+    return { ok: true, count: list.length, sample: list.slice(0, 2) };
+  });
+
+
 
   // Collector health for the header banner.
   app.get("/api/collector", async () => {
