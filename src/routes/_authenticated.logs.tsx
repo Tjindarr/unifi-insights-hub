@@ -49,6 +49,7 @@ function matches(s: SyslogEntry, p: Parsed): boolean {
 }
 
 function LogsPage() {
+  const { data: syslog, isLive } = useSyslog();
   const [q, setQ] = useState("");
   const [sev, setSev] = useState<Set<Severity>>(new Set(SEVERITIES));
   const [host, setHost] = useState<string | "all">("all");
@@ -64,11 +65,14 @@ function LogsPage() {
     if (typeof window !== "undefined") localStorage.setItem(SAVED_KEY, JSON.stringify(next));
   }
 
-  const hosts = useMemo(() => Array.from(new Set(syslog.map((s) => s.host))).sort(), []);
+  const hosts = useMemo(() => Array.from(new Set(syslog.map((s) => s.host))).sort(), [syslog]);
   const parsed = useMemo(() => parseQuery(q), [q]);
   const rows = useMemo(() =>
-    syslog.filter((s) => sev.has(s.severity) && (host === "all" || s.host === host) && matches(s, parsed))
-  , [parsed, sev, host]);
+    syslog.filter((s: SyslogEntry) => sev.has(s.severity) && (host === "all" || s.host === host) && matches(s, parsed))
+  , [parsed, sev, host, syslog]);
+  const syslogByMinute = useSyslogByMinute(syslog);
+
+
 
   function toggleSev(s: Severity) {
     const next = new Set(sev);
