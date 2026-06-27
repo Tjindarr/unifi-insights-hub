@@ -7,6 +7,7 @@ import {
   recentFirewall,
   recentSyslog,
 } from "../db/queries.ts";
+import { clientDetails } from "../syslog/enrichers.ts";
 import type { makeAuth } from "../auth.ts";
 import type { ConfigStore } from "../config.ts";
 import { UnifiManager } from "../unifi/manager.ts";
