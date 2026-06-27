@@ -37,13 +37,18 @@ function parseRfc3164Time(s: string): number {
   const m = s.match(/^([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})$/);
   if (!m) return Date.now();
   const now = new Date();
-  let year = now.getUTCFullYear();
+  let year = now.getFullYear();
   const month = MONTHS[m[1]] ?? 0;
   const day = Number(m[2]);
-  const guess = Date.UTC(year, month, day, Number(m[3]), Number(m[4]), Number(m[5]));
-  // If the parsed date is far in the future it likely belongs to last year (Dec→Jan wrap).
-  if (guess - now.getTime() > 86_400_000) year -= 1;
-  return Date.UTC(year, month, day, Number(m[3]), Number(m[4]), Number(m[5]));
+  // UniFi sends RFC3164 timestamps without a timezone, in the device's local
+  // time. Interpret as the container's local time — set TZ on the container
+  // (e.g. TZ=Europe/Stockholm) to match the router.
+  let guess = new Date(year, month, day, Number(m[3]), Number(m[4]), Number(m[5])).getTime();
+  if (guess - now.getTime() > 86_400_000) {
+    year -= 1;
+    guess = new Date(year, month, day, Number(m[3]), Number(m[4]), Number(m[5])).getTime();
+  }
+  return guess;
 }
 
 export function parseSyslog(line: string, fallbackHost = "unknown"): ParsedSyslog {
