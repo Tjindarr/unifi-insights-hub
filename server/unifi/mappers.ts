@@ -453,56 +453,87 @@ const DPI_CAT: Record<number, string> = {
   255: "Unknown",
 };
 
-export function mapDpi(rawDpi: any) {
-  const arr: Raw[] = arrayFrom(rawDpi, ["data", "items", "results", "applications", "client_usage_by_app"]);
+type DpiCatalog = {
+  apps?: Record<string, { name: string; category?: string | number }>;
+  categories?: Record<string, string>;
+};
+
+export function mapDpi(rawDpi: any, catalog?: DpiCatalog | null) {
   const root = rawDpi && typeof rawDpi === "object" && !Array.isArray(rawDpi) ? rawDpi : null;
-  if (root && arr.length === 0 && root.data && typeof root.data === "object") {
-    if (Array.isArray(root.data.client_usage_by_app)) arr.push(...root.data.client_usage_by_app);
-    else if (Array.isArray(root.data.by_app) || Array.isArray(root.data.by_cat) || Array.isArray(root.data.usage_by_app)) arr.push(root.data);
+  const dataRoot = root?.data && typeof root.data === "object" ? root.data : null;
+
+  // Prefer the pre-aggregated total_usage_by_app on v2 traffic responses.
+  const totals: Raw[] = Array.isArray(root?.total_usage_by_app)
+    ? root.total_usage_by_app
+    : Array.isArray(dataRoot?.total_usage_by_app)
+      ? dataRoot.total_usage_by_app
+      : [];
+
+  const arr: Raw[] = totals.length > 0 ? [] : arrayFrom(rawDpi, ["data", "items", "results", "applications", "client_usage_by_app"]);
+  if (totals.length === 0) {
+    if (root && arr.length === 0 && dataRoot) {
+      if (Array.isArray(dataRoot.client_usage_by_app)) arr.push(...dataRoot.client_usage_by_app);
+      else if (Array.isArray(dataRoot.by_app) || Array.isArray(dataRoot.by_cat) || Array.isArray(dataRoot.usage_by_app)) arr.push(dataRoot);
+    }
+    if (root && arr.length === 0 && (Array.isArray(root.by_app) || Array.isArray(root.by_cat) || Array.isArray(root.usage_by_app))) arr.push(root);
   }
-  if (root && arr.length === 0 && (Array.isArray(root.by_app) || Array.isArray(root.by_cat) || Array.isArray(root.usage_by_app))) arr.push(root);
-  // Items can be { by_app: [...] } (legacy sitedpi), direct app rows,
-  // { mac, by_app: [...] } (legacy stadpi), or Network 9.1+ v2 traffic rows:
-  // { client, usage_by_app: [{ application, category, bytes_received, ... }] }.
+
+  const appCat = catalog?.apps ?? {};
+  const catMap = catalog?.categories ?? {};
+  const resolveAppName = (id: any, fallback?: string) => {
+    if (fallback) return fallback;
+    const k = String(id);
+    if (appCat[k]?.name) return appCat[k].name;
+    return `App ${id}`;
+  };
+  const resolveCatName = (id: any, fallback?: string) => {
+    if (fallback) return fallback;
+    const k = String(id);
+    if (catMap[k]) return catMap[k];
+    if (DPI_CAT[num(id)]) return DPI_CAT[num(id)];
+    return id == null || id === "?" ? "Unknown" : `Cat ${id}`;
+  };
+
   const agg = new Map<string, { name: string; category: string; rx: number; tx: number }>();
   const catAgg = new Map<string, number>();
-  for (const item of arr) {
-    const cats: Raw[] = Array.isArray(item?.by_cat) ? item.by_cat : [];
-    for (const c of cats) {
-      const category = str(c.cat_name ?? c.category ?? DPI_CAT[num(c.cat)] ?? `Cat ${c.cat ?? "?"}`);
-      const total = num(c.rx_bytes ?? c.rxBytes ?? c.bytes_rx ?? c.rx) + num(c.tx_bytes ?? c.txBytes ?? c.bytes_tx ?? c.tx);
-      catAgg.set(category, (catAgg.get(category) ?? 0) + total);
-    }
-    const list: Raw[] = Array.isArray(item?.by_app)
-      ? item.by_app
-      : Array.isArray(item?.usage_by_app)
-        ? item.usage_by_app
-      : Array.isArray(item?.apps)
-        ? item.apps
+
+  const addApp = (a: Raw, ownerCat?: any) => {
+    const appId = a.app ?? a.app_id ?? a.application ?? a.app_name ?? "unknown";
+    const catId = a.cat ?? a.category ?? ownerCat ?? appCat[String(appId)]?.category ?? "?";
+    const id = String(appId);
+    const key = `${catId}/${id}`;
+    const name = resolveAppName(appId, a.app_name ?? a.name ?? a.application_name);
+    const category = resolveCatName(catId, a.cat_name ?? a.category_name);
+    const prev = agg.get(key) ?? { name, category, rx: 0, tx: 0 };
+    let rx = num(a.rx_bytes ?? a.rxBytes ?? a.bytes_rx ?? a.bytes_received ?? a.rx);
+    let tx = num(a.tx_bytes ?? a.txBytes ?? a.bytes_tx ?? a.bytes_transmitted ?? a.tx);
+    const total = num(a.total_bytes ?? a.totalBytes ?? a.bytes);
+    if (!rx && !tx && total) { rx = total; tx = 0; }
+    prev.rx += rx; prev.tx += tx;
+    agg.set(key, prev);
+    catAgg.set(category, (catAgg.get(category) ?? 0) + rx + tx);
+  };
+
+  if (totals.length > 0) {
+    for (const a of totals) addApp(a);
+  } else {
+    for (const item of arr) {
+      const cats: Raw[] = Array.isArray(item?.by_cat) ? item.by_cat : [];
+      for (const c of cats) {
+        const category = resolveCatName(c.cat, c.cat_name ?? c.category);
+        const total = num(c.rx_bytes ?? c.rxBytes ?? c.bytes_rx ?? c.rx) + num(c.tx_bytes ?? c.txBytes ?? c.bytes_tx ?? c.tx);
+        catAgg.set(category, (catAgg.get(category) ?? 0) + total);
+      }
+      const list: Raw[] = Array.isArray(item?.by_app) ? item.by_app
+        : Array.isArray(item?.usage_by_app) ? item.usage_by_app
+        : Array.isArray(item?.apps) ? item.apps
         : (item?.app != null || item?.app_id != null || item?.application != null || item?.app_name != null || item?.rx_bytes != null || item?.tx_bytes != null || item?.total_bytes != null)
           ? [item]
           : [];
-    for (const a of list) {
-      const appId = a.app ?? a.app_id ?? a.application ?? a.app_name ?? "unknown";
-      const catId = a.cat ?? a.category ?? "?";
-      const id = String(appId);
-      const key = `${catId}/${id}`;
-      const prev = agg.get(key) ?? {
-        name: str(a.app_name ?? a.name ?? a.application_name ?? (typeof appId === "number" ? `App ${id}` : appId) ?? `App ${id}`),
-        category: str(a.cat_name ?? a.category_name ?? DPI_CAT[num(catId)] ?? `Cat ${catId}`),
-        rx: 0,
-        tx: 0,
-      };
-      let rx = num(a.rx_bytes ?? a.rxBytes ?? a.rx_bytes_r ?? a.bytes_rx ?? a.bytes_received ?? a.rx);
-      let tx = num(a.tx_bytes ?? a.txBytes ?? a.tx_bytes_r ?? a.bytes_tx ?? a.bytes_transmitted ?? a.tx);
-      const total = num(a.total_bytes ?? a.totalBytes ?? a.bytes);
-      if (!rx && !tx && total) { rx = total; tx = 0; }
-      prev.rx += rx;
-      prev.tx += tx;
-      agg.set(key, prev);
-      catAgg.set(prev.category, (catAgg.get(prev.category) ?? 0) + rx + tx);
+      for (const a of list) addApp(a);
     }
   }
+
   const top = [...agg.values()]
     .filter((a) => a.rx + a.tx > 0)
     .sort((a, b) => b.rx + b.tx - a.rx - a.tx)
