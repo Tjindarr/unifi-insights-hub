@@ -61,15 +61,21 @@ export function extractFirewall(message: string, appname: string): FirewallField
 
   // Kernel UFW / iptables style: [UFW BLOCK] or UniFi rule tag [WAN_LOCAL-2000-D]
   const ufw = message.match(/\[(UFW|UBNT|FW)[\s_-]+(BLOCK|ALLOW|DENY|DROP|REJECT|ACCEPT)\]/i);
-  const unifiTag = message.match(/\[([A-Z0-9_]+)-(\d+)-([A-Z])\]/);
+  // Support both [RULE-ID-ACTION] and newer [RULE-ACTION-ID] tag orders
+  const unifiTag =
+    message.match(/\[([A-Z0-9_]+)-([A-Z])-(\d+)\]/) ||
+    message.match(/\[([A-Z0-9_]+)-(\d+)-([A-Z])\]/);
   if (ufw || unifiTag) {
     if (ufw) {
       result.rule = ufw[1].toUpperCase();
       const act = ufw[2].toUpperCase();
       result.action = act === "ACCEPT" || act === "ALLOW" ? "allow" : "deny";
     } else if (unifiTag) {
-      result.rule = `${unifiTag[1]}-${unifiTag[2]}`;
-      const code = unifiTag[3];
+      // Detect which capture group is the action letter
+      const isActionFirst = /^[A-Z]$/.test(unifiTag[2]);
+      const code = isActionFirst ? unifiTag[2] : unifiTag[3];
+      const id = isActionFirst ? unifiTag[3] : unifiTag[2];
+      result.rule = `${unifiTag[1]}-${id}`;
       result.action = code === "A" ? "allow" : code === "R" ? "reject" : "deny";
     }
     result.src_ip = message.match(/\bSRC=([^\s]+)/)?.[1] ?? null;
