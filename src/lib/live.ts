@@ -67,7 +67,9 @@ function useLive<T>(
     refetchInterval: refetchMs,
     staleTime: refetchMs / 2,
   });
-  const isLive = data != null && !(Array.isArray(data) && data.length === 0);
+  // Treat any non-null response as live, even if the array is empty — that
+  // just means UniFi is connected but has nothing to report right now.
+  const isLive = data != null;
   return { data: isLive ? (data as T) : fallback, isLive, loading: isLoading };
 }
 
