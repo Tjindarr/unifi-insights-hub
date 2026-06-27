@@ -69,17 +69,43 @@ export class UnifiClient {
   health() {
     return this.call(`/proxy/network/api/s/${this.cfg.site}/stat/health`);
   }
-  events() {
-    return this.call(`/proxy/network/api/s/${this.cfg.site}/stat/event?_limit=100`);
+  async events() {
+    // UDR / UniFi OS firmwares differ. Try v2 first (current Network app),
+    // then v1 POST, then v1 GET. Whichever responds is returned.
+    const site = this.cfg.site;
+    const attempts: Array<() => Promise<unknown>> = [
+      () => this.call(`/proxy/network/v2/api/site/${site}/events?within=168&limit=100`),
+      () => this.call(`/proxy/network/api/s/${site}/stat/event`, { _limit: 100, within: 168 }),
+      () => this.call(`/proxy/network/api/s/${site}/stat/event?_limit=100`),
+      () => this.call(`/proxy/network/api/s/${site}/rest/event?_limit=100`),
+    ];
+    let lastErr: unknown = null;
+    for (const fn of attempts) {
+      try { return await fn(); } catch (e) { lastErr = e; }
+    }
+    throw lastErr ?? new Error("events: all endpoints failed");
   }
   async dpi() {
+    const site = this.cfg.site;
     // Site-wide DPI aggregated by app + category. UniFi expects POST with body.
-    try {
-      return await this.call(`/proxy/network/api/s/${this.cfg.site}/stat/sitedpi`, { type: "by_app" });
-    } catch {
-      // Per-station DPI fallback for firmwares that don't expose sitedpi.
-      return await this.call(`/proxy/network/api/s/${this.cfg.site}/stat/stadpi`, { type: "by_app" });
+    const attempts: Array<() => Promise<unknown>> = [
+      () => this.call(`/proxy/network/api/s/${site}/stat/sitedpi`, { type: "by_app" }),
+      () => this.call(`/proxy/network/api/s/${site}/stat/sitedpi`, { type: "by_cat" }),
+      () => this.call(`/proxy/network/api/s/${site}/stat/stadpi`, { type: "by_app" }),
+      () => this.call(`/proxy/network/api/s/${site}/stat/stadpi`),
+    ];
+    let lastErr: unknown = null;
+    for (const fn of attempts) {
+      try {
+        const r: any = await fn();
+        // Skip empty responses so we keep trying.
+        const data = r?.data ?? r;
+        if (Array.isArray(data) && data.length > 0) return r;
+        if (!Array.isArray(data) && data) return r;
+      } catch (e) { lastErr = e; }
     }
+    if (lastErr) throw lastErr;
+    return { data: [] };
   }
 }
 

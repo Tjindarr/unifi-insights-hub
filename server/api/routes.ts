@@ -255,6 +255,32 @@ export async function registerApi(
     return mapDpi(snap("unifi_dpi_snapshot"));
   });
 
+  // Debug: returns shape + small sample of each UniFi snapshot so we can
+  // diagnose mapping issues without spamming logs.
+  app.get("/api/_debug/snapshots", async () => {
+    const keys = [
+      "unifi_clients_snapshot",
+      "unifi_devices_snapshot",
+      "unifi_health_snapshot",
+      "unifi_events_snapshot",
+      "unifi_dpi_snapshot",
+    ];
+    const out: Record<string, unknown> = {};
+    for (const k of keys) {
+      const v: any = snap(k);
+      if (v == null) { out[k] = { present: false }; continue; }
+      const isArr = Array.isArray(v);
+      out[k] = {
+        present: true,
+        isArray: isArr,
+        length: isArr ? v.length : undefined,
+        sample: isArr ? v.slice(0, 2) : v,
+      };
+    }
+    return out;
+  });
+
+
   // Collector health for the header banner.
   app.get("/api/collector", async () => {
     const stats = dbStats(db);
