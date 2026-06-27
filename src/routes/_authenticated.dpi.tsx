@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { PageHeader } from "@/components/app-shell";
-import { dpiTopApps, dpiByCategory } from "@/lib/mock-extra";
+import { DemoBadge } from "@/components/demo-badge";
+import { useDpi } from "@/lib/live";
 import { formatBytes } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/dpi")({
@@ -11,10 +12,14 @@ export const Route = createFileRoute("/_authenticated/dpi")({
 });
 
 function DpiPage() {
-  const max = dpiTopApps[0].rx + dpiTopApps[0].tx;
+  const { data: dpi, isLive } = useDpi();
+  const dpiTopApps = dpi.apps;
+  const dpiByCategory = dpi.byCategory;
+  const max = dpiTopApps[0] ? dpiTopApps[0].rx + dpiTopApps[0].tx : 1;
   return (
     <div>
-      <PageHeader title="DPI / Apps" description="Top applications and categories by traffic" />
+      <PageHeader title="DPI / Apps" description="Top applications and categories by traffic" actions={<DemoBadge isLive={isLive} />} />
+
       <div className="p-6 space-y-6">
         <div className="rounded-lg border border-border bg-card">
           <div className="px-4 py-3 border-b border-border">
