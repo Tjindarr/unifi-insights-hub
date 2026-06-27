@@ -6,8 +6,8 @@ import {
 import { ArrowDown, ArrowUp, Cable, Gauge, Wifi } from "lucide-react";
 
 import { PageHeader, StatTile } from "@/components/app-shell";
-import { overview, wanThroughput } from "@/lib/mock-data";
-import { siteEvents } from "@/lib/mock-extra";
+import { DemoBadge } from "@/components/demo-badge";
+import { useEvents, useOverview, useWanThroughput } from "@/lib/live";
 import { formatBits, formatBytes, formatRate, formatTime, relativeTime } from "@/lib/format";
 import { ClientDrawer } from "@/components/client-drawer";
 import { cn } from "@/lib/utils";
@@ -18,12 +18,15 @@ export const Route = createFileRoute("/_authenticated/")({
 });
 
 function OverviewPage() {
-  const o = overview();
+  const { data: o, isLive } = useOverview();
+  const wanThroughput = useWanThroughput();
+  const { data: siteEvents } = useEvents();
   const [focus, setFocus] = useState<string | null>(null);
 
   return (
     <div>
-      <PageHeader title="Overview" description="Live network health and top clients" />
+      <PageHeader title="Overview" description="Live network health and top clients" actions={<DemoBadge isLive={isLive} />} />
+
 
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
