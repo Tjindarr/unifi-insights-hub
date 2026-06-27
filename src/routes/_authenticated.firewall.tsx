@@ -21,6 +21,8 @@ export const Route = createFileRoute("/_authenticated/firewall")({
 type View = "list" | "rule" | "mac" | "src";
 
 function FirewallPage() {
+  const { data: firewallEvents, isLive } = useFirewall();
+  const { data: firewallByMinute } = useFirewallByMinute();
   const [q, setQ] = useState("");
   const [action, setAction] = useState<"all" | "failure" | "success">("all");
   const [view, setView] = useState<View>("list");
@@ -32,7 +34,8 @@ function FirewallPage() {
       (action === "all" || e.action === action) &&
       (!ql || e.rule.toLowerCase().includes(ql) || e.clientMac?.toLowerCase().includes(ql) || e.clientName?.toLowerCase().includes(ql) || e.vap?.toLowerCase().includes(ql) || e.srcIp?.includes(ql) || e.dstIp?.includes(ql)),
     );
-  }, [q, action]);
+  }, [q, action, firewallEvents]);
+
 
   const grouped = useMemo(() => {
     if (view === "list") return [];
