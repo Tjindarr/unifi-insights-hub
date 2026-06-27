@@ -249,7 +249,10 @@ function FirewallPage() {
 
       <div className="p-6 space-y-4">
         <div className="rounded-lg border border-border bg-card">
-          <div className="px-4 pt-3"><h2 className="text-xs uppercase tracking-wider text-muted-foreground">Events / minute</h2></div>
+          <div className="px-4 pt-3 flex items-center justify-between">
+            <h2 className="text-xs uppercase tracking-wider text-muted-foreground">Events {bucketLabel}</h2>
+            <span className="text-[10px] text-muted-foreground tabular-nums">{rows.length} in window</span>
+          </div>
           <div className="h-32 p-2">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={firewallByMinute} stackOffset="sign">
