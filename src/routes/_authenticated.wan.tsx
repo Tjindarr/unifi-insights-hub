@@ -5,7 +5,9 @@ import {
 import { Globe, Network as NetIcon } from "lucide-react";
 
 import { PageHeader, StatTile } from "@/components/app-shell";
-import { wan } from "@/lib/mock-extra";
+import { DemoBadge } from "@/components/demo-badge";
+import { useWan } from "@/lib/live";
+import { wan as mockWan } from "@/lib/mock-extra";
 import { formatBits, formatTime } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/wan")({
@@ -14,13 +16,18 @@ export const Route = createFileRoute("/_authenticated/wan")({
 });
 
 function WanPage() {
-  const avgLat = (wan.latencyHistory.reduce((a, p) => a + p.latency, 0) / wan.latencyHistory.length).toFixed(1);
-  const maxLat = Math.max(...wan.latencyHistory.map((p) => p.latency)).toFixed(1);
-  const totalLoss = (wan.latencyHistory.reduce((a, p) => a + p.loss, 0) / wan.latencyHistory.length).toFixed(2);
+  const { data: wan, isLive } = useWan();
+  // History + speed tests are not yet collected — render from mock for now.
+  const latencyHistory = mockWan.latencyHistory;
+  const speedTests = mockWan.speedTests;
+  const avgLat = (latencyHistory.reduce((a, p) => a + p.latency, 0) / latencyHistory.length).toFixed(1);
+  const maxLat = Math.max(...latencyHistory.map((p) => p.latency)).toFixed(1);
+  const totalLoss = (latencyHistory.reduce((a, p) => a + p.loss, 0) / latencyHistory.length).toFixed(2);
 
   return (
     <div>
-      <PageHeader title="WAN" description="ISP link, latency, and speed test history" />
+      <PageHeader title="WAN" description="ISP link, latency, and speed test history" actions={<DemoBadge isLive={isLive} />} />
+
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StatTile label="ISP" value={wan.isp} sub={wan.uplink} accent="primary" />
@@ -45,7 +52,7 @@ function WanPage() {
           </div>
           <div className="h-56 p-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={wan.latencyHistory}>
+              <AreaChart data={latencyHistory}>
                 <defs>
                   <linearGradient id="lat" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="var(--color-rx)" stopOpacity={0.45} />
@@ -72,7 +79,7 @@ function WanPage() {
               <tr><th className="text-left px-3 py-2">When</th><th className="text-right px-3 py-2">Download</th><th className="text-right px-3 py-2">Upload</th><th className="text-right px-3 py-2">Ping</th></tr>
             </thead>
             <tbody>
-              {wan.speedTests.map((t) => (
+              {speedTests.map((t) => (
                 <tr key={t.t} className="border-t border-border">
                   <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(t.t).toLocaleDateString()}</td>
                   <td className="px-3 py-2 text-right font-mono text-rx">{formatBits(t.down)}</td>

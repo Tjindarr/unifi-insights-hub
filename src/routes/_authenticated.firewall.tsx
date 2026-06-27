@@ -4,12 +4,14 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recha
 import { ChevronRight, Download, Search } from "lucide-react";
 
 import { PageHeader, SeverityDot } from "@/components/app-shell";
+import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
-import { firewallEvents } from "@/lib/mock-data";
-import { firewallByMinute, deauthReasonMap, geoLookup } from "@/lib/mock-extra";
+import { useFirewall, useFirewallByMinute } from "@/lib/live";
+import { deauthReasonMap, geoLookup } from "@/lib/mock-extra";
 import { formatTime, relativeTime } from "@/lib/format";
 import { exportNdjson } from "@/lib/export";
 import { cn } from "@/lib/utils";
+
 
 export const Route = createFileRoute("/_authenticated/firewall")({
   head: () => ({ meta: [{ title: "Firewall — UniFi Dashboard" }] }),
@@ -19,6 +21,8 @@ export const Route = createFileRoute("/_authenticated/firewall")({
 type View = "list" | "rule" | "mac" | "src";
 
 function FirewallPage() {
+  const { data: firewallEvents, isLive } = useFirewall();
+  const { data: firewallByMinute } = useFirewallByMinute();
   const [q, setQ] = useState("");
   const [action, setAction] = useState<"all" | "failure" | "success">("all");
   const [view, setView] = useState<View>("list");
@@ -30,7 +34,8 @@ function FirewallPage() {
       (action === "all" || e.action === action) &&
       (!ql || e.rule.toLowerCase().includes(ql) || e.clientMac?.toLowerCase().includes(ql) || e.clientName?.toLowerCase().includes(ql) || e.vap?.toLowerCase().includes(ql) || e.srcIp?.includes(ql) || e.dstIp?.includes(ql)),
     );
-  }, [q, action]);
+  }, [q, action, firewallEvents]);
+
 
   const grouped = useMemo(() => {
     if (view === "list") return [];
@@ -61,6 +66,8 @@ function FirewallPage() {
         description={`${rows.length} events · ${stats.failures} failures · ${stats.uniqueClients} clients`}
         actions={
           <div className="flex items-center gap-2">
+            <DemoBadge isLive={isLive} />
+
             <button onClick={() => exportNdjson("firewall", rows)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60">
               <Download className="h-3.5 w-3.5" />NDJSON
             </button>

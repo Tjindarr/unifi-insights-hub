@@ -3,8 +3,9 @@ import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Cable, Download, Search, Wifi } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
+import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
-import { clients } from "@/lib/mock-data";
+import { useClients } from "@/lib/live";
 import { formatBits, formatBytes, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ClientDrawer } from "@/components/client-drawer";
@@ -19,6 +20,7 @@ export const Route = createFileRoute("/_authenticated/clients")({
 type SortKey = "hostname" | "ip" | "signal" | "satisfaction" | "rxRate" | "txRate" | "total";
 
 function ClientsPage() {
+  const { data: clients, isLive } = useClients();
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SortKey>("total");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
@@ -38,7 +40,7 @@ function ClientsPage() {
         const cmp = av > bv ? 1 : -1;
         return dir === "asc" ? cmp : -cmp;
       });
-  }, [q, sort, dir, filter]);
+  }, [q, sort, dir, filter, clients]);
 
   function toggleSort(k: SortKey) {
     if (sort === k) setDir(dir === "asc" ? "desc" : "asc");
@@ -52,6 +54,8 @@ function ClientsPage() {
         description={`${rows.length} of ${clients.length} clients`}
         actions={
           <div className="flex items-center gap-2">
+            <DemoBadge isLive={isLive} />
+
             <button onClick={() => exportCsv("clients", rows)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60">
               <Download className="h-3.5 w-3.5" />CSV
             </button>

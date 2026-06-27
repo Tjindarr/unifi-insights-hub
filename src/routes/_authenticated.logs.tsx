@@ -4,10 +4,10 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { Download, Save, Search, Star, X } from "lucide-react";
 
 import { PageHeader, SeverityDot } from "@/components/app-shell";
+import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
-import { syslog } from "@/lib/mock-data";
 import type { Severity, SyslogEntry } from "@/lib/mock-data";
-import { syslogByMinute } from "@/lib/mock-extra";
+import { useSyslog, useSyslogByMinute } from "@/lib/live";
 import { formatDateTime, formatTime } from "@/lib/format";
 import { exportNdjson } from "@/lib/export";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ export const Route = createFileRoute("/_authenticated/logs")({
   head: () => ({ meta: [{ title: "Logs — UniFi Dashboard" }] }),
   component: LogsPage,
 });
+
 
 const SEVERITIES: Severity[] = ["info", "notice", "warn", "error", "critical"];
 const SAVED_KEY = "logs-saved-searches";
@@ -48,6 +49,7 @@ function matches(s: SyslogEntry, p: Parsed): boolean {
 }
 
 function LogsPage() {
+  const { data: syslog, isLive } = useSyslog();
   const [q, setQ] = useState("");
   const [sev, setSev] = useState<Set<Severity>>(new Set(SEVERITIES));
   const [host, setHost] = useState<string | "all">("all");
@@ -63,11 +65,14 @@ function LogsPage() {
     if (typeof window !== "undefined") localStorage.setItem(SAVED_KEY, JSON.stringify(next));
   }
 
-  const hosts = useMemo(() => Array.from(new Set(syslog.map((s) => s.host))).sort(), []);
+  const hosts = useMemo(() => Array.from(new Set(syslog.map((s) => s.host))).sort(), [syslog]);
   const parsed = useMemo(() => parseQuery(q), [q]);
   const rows = useMemo(() =>
-    syslog.filter((s) => sev.has(s.severity) && (host === "all" || s.host === host) && matches(s, parsed))
-  , [parsed, sev, host]);
+    syslog.filter((s: SyslogEntry) => sev.has(s.severity) && (host === "all" || s.host === host) && matches(s, parsed))
+  , [parsed, sev, host, syslog]);
+  const syslogByMinute = useSyslogByMinute(rows, isLive);
+
+
 
   function toggleSev(s: Severity) {
     const next = new Set(sev);
@@ -88,6 +93,8 @@ function LogsPage() {
         description={`${rows.length} of ${syslog.length} · syntax: host:U7ProXG sev:warn app:stahtd term`}
         actions={
           <div className="flex items-center gap-2">
+            <DemoBadge isLive={isLive} />
+
             <button onClick={() => exportNdjson("logs", rows)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60">
               <Download className="h-3.5 w-3.5" />NDJSON
             </button>

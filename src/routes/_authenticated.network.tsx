@@ -10,7 +10,8 @@ import {
 } from "recharts";
 
 import { PageHeader, StatTile } from "@/components/app-shell";
-import { accessPoints, siteHealth, wanThroughput } from "@/lib/mock-data";
+import { DemoBadge } from "@/components/demo-badge";
+import { useAccessPoints, useWan, useWanThroughput } from "@/lib/live";
 import { formatBits } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -28,31 +29,36 @@ function formatUptime(sec: number) {
 }
 
 function NetworkPage() {
+  const { data: wan, isLive } = useWan();
+  const { data: accessPoints } = useAccessPoints();
+  const wanThroughput = useWanThroughput();
   const peakRx = Math.max(...wanThroughput.map((p) => p.rx));
   const peakTx = Math.max(...wanThroughput.map((p) => p.tx));
 
   return (
     <div>
-      <PageHeader title="Network" description="Site health, WAN, and access points" />
+      <PageHeader title="Network" description="Site health, WAN, and access points" actions={<DemoBadge isLive={isLive} />} />
+
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StatTile
             label="WAN status"
-            value={siteHealth.wanStatus.toUpperCase()}
-            sub={siteHealth.isp}
-            accent={siteHealth.wanStatus === "up" ? "primary" : "error"}
+            value={wan.status.toUpperCase()}
+            sub={wan.isp}
+            accent={wan.status === "up" ? "primary" : "error"}
           />
           <StatTile
             label="WAN latency"
-            value={`${siteHealth.wanLatency} ms`}
-            sub={`${siteHealth.wanLoss}% loss`}
+            value={`${wan.latency} ms`}
+            sub={`${wan.loss}% loss`}
           />
-          <StatTile label="Uptime" value={formatUptime(siteHealth.uptime)} />
+          <StatTile label="Uptime" value={formatUptime(wan.uptime)} />
           <StatTile
             label="Gateway"
-            value={`${siteHealth.cpu}% CPU`}
-            sub={`${siteHealth.memory}% memory`}
+            value={`${wan.cpu}% CPU`}
+            sub={`${wan.memory}% memory`}
           />
+
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

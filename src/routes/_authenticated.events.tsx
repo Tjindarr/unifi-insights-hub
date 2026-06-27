@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AlertCircle, Cable, Download, Shield, User, Wifi } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
-import { siteEvents } from "@/lib/mock-extra";
+import { DemoBadge } from "@/components/demo-badge";
+import { useEvents } from "@/lib/live";
 import { formatDateTime, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -20,9 +21,11 @@ const icons = {
 } as const;
 
 function EventsPage() {
+  const { data: siteEvents, isLive } = useEvents();
+
   return (
     <div>
-      <PageHeader title="Events" description="Admin actions, WAN flaps, firmware, system" />
+      <PageHeader title="Events" description="Admin actions, WAN flaps, firmware, system" actions={<DemoBadge isLive={isLive} />} />
       <div className="p-6">
         <ul className="rounded-lg border border-border bg-card divide-y divide-border">
           {siteEvents.map((e) => {
