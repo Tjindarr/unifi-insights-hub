@@ -73,8 +73,12 @@ export function mapClient(c: Raw): MappedClient {
     : str(c.ap_name ?? c.essid ?? c.ap_mac, "wifi");
   const rxBytes = num(c.rx_bytes ?? c["rx-bytes"]);
   const txBytes = num(c.tx_bytes ?? c["tx-bytes"]);
-  const rxKbps = num(c.rx_rate ?? c["rx-rate"]);
-  const txKbps = num(c.tx_rate ?? c["tx-rate"]);
+  // PHY link rate (kbps) — capacity, not actual throughput
+  const linkRxKbps = num(c.rx_rate ?? c["rx-rate"]);
+  const linkTxKbps = num(c.tx_rate ?? c["tx-rate"]);
+  // Actual current throughput (bytes/sec) from UniFi's recent-rate counters
+  const rxBps = num(c["rx-bytes-r"] ?? c.rx_bytes_r ?? c.rx_rate_bps);
+  const txBps = num(c["tx-bytes-r"] ?? c.tx_bytes_r ?? c.tx_rate_bps);
   const radioRaw = str(c.radio);
   const band: MappedClient["band"] =
     radioRaw === "ng" ? "2.4" : radioRaw === "na" ? "5" : radioRaw === "6e" ? "6" : "—";
@@ -94,8 +98,8 @@ export function mapClient(c: Raw): MappedClient {
     vlan: str(c.network ?? c.network_name ?? "LAN"),
     signal,
     satisfaction: num(c.satisfaction ?? 100, 100),
-    rxRate: Math.floor((rxKbps * 1000) / 8),
-    txRate: Math.floor((txKbps * 1000) / 8),
+    rxRate: Math.floor(rxBps),
+    txRate: Math.floor(txBps),
     rxBytes,
     txBytes,
     lastSeen: new Date(num(c.last_seen) * 1000 || Date.now()).toISOString(),
