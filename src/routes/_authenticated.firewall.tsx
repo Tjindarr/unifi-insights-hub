@@ -84,7 +84,7 @@ function FirewallPage() {
   const [limit, setLimit] = useState<LimitOpt>(1000);
   const { data: allEvents, isLive } = useFirewall({ kind: "firewall", limit });
   const { range } = useUI();
-  const { data: firewallByMinute, label: bucketLabel } = useFirewallByMinute(range);
+  const { data: firewallByMinute, label: bucketLabel } = useFirewallByMinute(range, allEvents);
   const [q, setQ] = useState("");
   const [srcQ, setSrcQ] = useState("");
   const [dstQ, setDstQ] = useState("");
