@@ -5,6 +5,7 @@ import {
   dbStats,
   firewallBuckets,
   getSnapshot,
+  internalEventBuckets,
   recentFirewall,
   recentSyslog,
 } from "../db/queries.ts";
@@ -484,6 +485,17 @@ export async function registerApi(
     const bucketMs = req.query.bucketMs ? Number(req.query.bucketMs) : 60_000;
     const kind = req.query.kind === "internal" || req.query.kind === "firewall" ? req.query.kind : undefined;
     return firewallBuckets(db, { since, rangeMs, bucketMs, kind });
+  });
+
+  // Aggregated category buckets for the Internal events chart. This endpoint is
+  // intentionally separate from /api/firewall rows so the chart is controlled
+  // only by the global time range, never by the table's Last-N selector.
+  app.get<{
+    Querystring: { rangeMs?: string; bucketMs?: string };
+  }>("/api/internal/buckets", async (req) => {
+    const rangeMs = req.query.rangeMs ? Number(req.query.rangeMs) : undefined;
+    const bucketMs = req.query.bucketMs ? Number(req.query.bucketMs) : 60_000;
+    return internalEventBuckets(db, { rangeMs, bucketMs });
   });
 
   // ---- IP enrichment (GeoIP via ip-api.com; threat via AbuseIPDB if key set) ----

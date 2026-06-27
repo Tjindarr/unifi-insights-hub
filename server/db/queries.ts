@@ -37,7 +37,7 @@ type InternalBucketRow = {
   roam: number;
   other: number;
 };
-const bucketCache = new Map<string, { at: number; rows: BucketRow[] }>();
+const bucketCache = new Map<string, { at: number; rows: Array<BucketRow | InternalBucketRow> }>();
 const BUCKET_CACHE_TTL_MS = 5_000;
 let bucketCacheVersion = 0;
 
@@ -278,7 +278,8 @@ export function firewallBuckets(
 
   const wallSince = opts.since ?? now - (opts.rangeMs ?? 60 * 60_000);
   const rangeMs = opts.rangeMs ?? Math.max(opts.bucketMs, now - wallSince);
-  params.since = Math.floor((newest - rangeMs) / opts.bucketMs) * opts.bucketMs;
+  const end = Math.max(now, newest);
+  params.since = Math.floor((end - rangeMs) / opts.bucketMs) * opts.bucketMs;
   where.push("time >= @since");
 
   const rows = db.prepare(`
@@ -319,7 +320,8 @@ export function internalEventBuckets(
   }
 
   const rangeMs = opts.rangeMs ?? 60 * 60_000;
-  params.since = Math.floor((newest - rangeMs) / opts.bucketMs) * opts.bucketMs;
+  const end = Math.max(now, newest);
+  params.since = Math.floor((end - rangeMs) / opts.bucketMs) * opts.bucketMs;
 
   const rows = db.prepare(`
     WITH categorised AS (

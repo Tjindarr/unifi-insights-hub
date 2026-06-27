@@ -274,7 +274,7 @@ function bucketEvents<T extends string>(
 // Derived: firewall events bucketed for the active time range (success vs failure).
 // Backed by a dedicated SQL aggregation endpoint so the chart spans the whole
 // window even when the table only fetched the most recent 500 rows.
-export function useFirewallByMinute(range: TimeRangeKey = "1h", fallbackEvents: FirewallEvent[] = []) {
+export function useFirewallByMinute(range: TimeRangeKey = "1h") {
   const spec = bucketSpecForRange(range);
   // Use a stable query key per range so we don't drop cached data every time
   // the bucket boundary advances (that caused the chart to flash empty). The
@@ -309,18 +309,6 @@ export function useFirewallByMinute(range: TimeRangeKey = "1h", fallbackEvents: 
     const r = rowByT.get(t);
     out.push({ t: new Date(t).toISOString(), success: r?.success ?? 0, failure: r?.failure ?? 0 });
   }
-  const hasServerCounts = out.some((r) => r.success > 0 || r.failure > 0);
-  if (!hasServerCounts && fallbackEvents.length) {
-    return {
-      data: bucketEvents(
-        fallbackEvents.map((e) => ({ time: e.time, key: e.action === "failure" ? "failure" : "success" })),
-        range,
-        ["success", "failure"] as const,
-      ),
-      isLive: true,
-      label: spec.label,
-    };
-  }
   return { data: out, isLive: true, label: spec.label };
 }
 
@@ -334,22 +322,51 @@ export function useInternalByBucket(
   range: TimeRangeKey = "1h",
 ) {
   const spec = bucketSpecForRange(range);
-  const { data: chartRows, isLive } = useLive<FwRow[]>(
-    `internal-chart:${range}`,
-    () => {
-      // Pull a window slightly larger than the visible range so future-stamped
-      // events (UDR clock drift) aren't trimmed. High row cap so chart is
-      // independent of the table's Last-N selector.
-      const since = Date.now() - spec.windowMs - 5 * 60_000;
-      return getJson<FwRow[]>(`/api/firewall?kind=internal&since=${since}&limit=50000`);
-    },
+  type InternalBucketRow = {
+    t: number;
+    connect: number;
+    disconnect: number;
+    authSuccess: number;
+    authFailure: number;
+    roam: number;
+    other: number;
+  };
+  const { data: chartRows, isLive } = useLive<InternalBucketRow[]>(
+    `internal-buckets:${range}`,
+    () => getJson<InternalBucketRow[]>(`/api/internal/buckets?rangeMs=${spec.windowMs}&bucketMs=${spec.bucketMs}`),
     [],
     15_000,
   );
-  const events = isLive ? normFw(chartRows as FwRow[], new Map()) : [];
-  const mapped = events.map((e) => ({ time: e.time, key: categorise(e) }));
+  if (!isLive) {
+    const mapped = (mockFw as FirewallEvent[]).map((e) => ({ time: e.time, key: categorise(e) }));
+    return {
+      data: bucketEvents(mapped, range, categories),
+      label: spec.label,
+    };
+  }
+
+  const wallNow = Date.now();
+  let latest = wallNow;
+  for (const r of chartRows) if (r.t > latest) latest = r.t + spec.bucketMs - 1;
+  const start = latest - spec.windowMs;
+  const first = Math.floor(start / spec.bucketMs) * spec.bucketMs;
+  const rowByT = new Map<number, InternalBucketRow>();
+  for (const r of chartRows) rowByT.set(r.t, r);
+  const out: { t: string; [k: string]: number | string }[] = [];
+  for (let t = first; t <= latest; t += spec.bucketMs) {
+    const r = rowByT.get(t);
+    out.push({
+      t: new Date(t).toISOString(),
+      connect: r?.connect ?? 0,
+      disconnect: r?.disconnect ?? 0,
+      "auth-success": r?.authSuccess ?? 0,
+      "auth-failure": r?.authFailure ?? 0,
+      roam: r?.roam ?? 0,
+      other: r?.other ?? 0,
+    });
+  }
   return {
-    data: bucketEvents(mapped, range, categories),
+    data: out,
     label: spec.label,
   };
 }

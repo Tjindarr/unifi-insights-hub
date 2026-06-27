@@ -84,7 +84,7 @@ function FirewallPage() {
   const [limit, setLimit] = useState<LimitOpt>(1000);
   const { data: allEvents, isLive } = useFirewall({ kind: "firewall", limit });
   const { range } = useUI();
-  const { data: firewallByMinute, label: bucketLabel } = useFirewallByMinute(range, allEvents);
+  const { data: firewallByMinute, label: bucketLabel } = useFirewallByMinute(range);
   const [q, setQ] = useState("");
   const [srcQ, setSrcQ] = useState("");
   const [dstQ, setDstQ] = useState("");
@@ -180,6 +180,11 @@ function FirewallPage() {
     external: tagged.filter((t) => t.ext).length,
   };
 
+  const windowTotal = useMemo(
+    () => firewallByMinute.reduce((sum, r) => sum + (Number(r.success) || 0) + (Number(r.failure) || 0), 0),
+    [firewallByMinute],
+  );
+
   return (
     <div>
       <PageHeader
@@ -263,7 +268,7 @@ function FirewallPage() {
         <div className="rounded-lg border border-border bg-card">
           <div className="px-4 pt-3 flex items-center justify-between">
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground">Events {bucketLabel}</h2>
-            <span className="text-[10px] text-muted-foreground tabular-nums">{rows.length} in window</span>
+            <span className="text-[10px] text-muted-foreground tabular-nums">{windowTotal} in selected window</span>
           </div>
           <div className="h-32 p-2">
             <ResponsiveContainer width="100%" height="100%">
