@@ -4,12 +4,14 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recha
 import { ChevronRight, Download, Search } from "lucide-react";
 
 import { PageHeader, SeverityDot } from "@/components/app-shell";
+import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
-import { firewallEvents } from "@/lib/mock-data";
-import { firewallByMinute, deauthReasonMap, geoLookup } from "@/lib/mock-extra";
+import { useFirewall, useFirewallByMinute } from "@/lib/live";
+import { deauthReasonMap, geoLookup } from "@/lib/mock-extra";
 import { formatTime, relativeTime } from "@/lib/format";
 import { exportNdjson } from "@/lib/export";
 import { cn } from "@/lib/utils";
+
 
 export const Route = createFileRoute("/_authenticated/firewall")({
   head: () => ({ meta: [{ title: "Firewall — UniFi Dashboard" }] }),
