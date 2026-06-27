@@ -295,44 +295,55 @@ export function mapFirmware(rawDevices: any) {
 
 export function mapTopology(rawDevices: any) {
   const devs: Raw[] = Array.isArray(rawDevices) ? rawDevices : [];
-  let gateway = { name: "Gateway", model: "Unknown" };
-  const switches: { name: string; model: string; ports: number; clients: number }[] = [];
+  let gateway = { name: "Gateway", model: "Unknown", mac: "" };
+  const switches: { name: string; model: string; mac: string; ports: number; clients: number }[] = [];
   const aps: {
     id: string; name: string; model: string; clients: number;
     channelUtil24: number; channelUtil5: number; channelUtil6: number;
     airtime: number; uplink: number; downlink: number;
     status: "online" | "offline" | "degraded";
+    uplinkMac?: string;
   }[] = [];
+  const isGatewayType = (t: string) =>
+    t === "ugw" || t.startsWith("udm") || t.startsWith("uxg") || t.startsWith("udr");
   for (const d of devs) {
-    const type = str(d.type);
-    const name = str(d.name ?? d.mac);
+    const type = str(d.type).toLowerCase();
+    const modelUp = str(d.model).toUpperCase();
+    if (isGatewayType(type) || d.is_gateway || modelUp.startsWith("UDR") || modelUp.startsWith("UDM") || modelUp.startsWith("UXG")) {
+      gateway = { name: str(d.name ?? d.model ?? d.mac), model: str(d.model ?? type), mac: str(d.mac) };
+      break;
+    }
+  }
+  for (const d of devs) {
+    const type = str(d.type).toLowerCase();
+    const mac = str(d.mac);
+    if (mac && mac === gateway.mac) continue;
+    const name = str(d.name ?? d.model ?? d.mac);
     const model = str(d.model ?? type);
-    if (type === "ugw" || type === "udm" || type === "uxg") {
-      gateway = { name, model };
-    } else if (type === "usw") {
-      switches.push({
-        name, model,
-        ports: (d.port_table ?? []).length,
-        clients: num(d.num_sta),
-      });
-    } else if (type === "uap") {
-      const radios: Raw[] = d.radio_table_stats ?? d.radio_table ?? [];
+    const radios: Raw[] = d.radio_table_stats ?? d.radio_table ?? [];
+    const hasRadios = radios.length > 0;
+    const uplinkMac = str(d.uplink?.uplink_mac ?? d.uplink?.gateway_mac ?? "");
+    if (type === "usw") {
+      switches.push({ name, model, mac, ports: (d.port_table ?? []).length, clients: num(d.num_sta) });
+    } else if (type === "uap" || hasRadios) {
       const utilFor = (band: string) => {
         const r = radios.find((x) => String(x.radio ?? x.name).includes(band));
         return r ? num(r.cu_total ?? r.channel_util ?? 0) : 0;
       };
       aps.push({
-        id: str(d.mac),
-        name, model,
+        id: mac || name, name, model,
         clients: num(d.num_sta),
         channelUtil24: utilFor("ng"),
         channelUtil5: utilFor("na"),
         channelUtil6: utilFor("6e"),
         airtime: num(d.airtime ?? 0),
-        uplink: num(d["uplink"]?.tx_rate ?? d.tx_bytes_r),
-        downlink: num(d["uplink"]?.rx_rate ?? d.rx_bytes_r),
+        uplink: num(d.uplink?.tx_rate ?? d.tx_bytes_r),
+        downlink: num(d.uplink?.rx_rate ?? d.rx_bytes_r),
         status: d.state === 1 ? "online" : d.state === 5 ? "degraded" : "offline",
+        uplinkMac,
       });
+    } else if ((d.port_table ?? []).length > 0) {
+      switches.push({ name, model, mac, ports: d.port_table.length, clients: num(d.num_sta) });
     }
   }
   return { gateway, switches, aps };
