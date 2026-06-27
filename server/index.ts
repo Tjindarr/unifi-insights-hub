@@ -142,6 +142,10 @@ const unifi = new UnifiManager(db);
 unifi.apply(config.get().unifi);
 config.onChange((cfg) => unifi.apply(cfg.unifi));
 
+// ---- Threat feed manager (offline IP/CIDR blocklists) ----
+const threatFeeds = new ThreatFeedManager(db, config);
+threatFeeds.start();
+
 // ---- Retention / cleanup ----
 // Three layered policies, all set in the UI and stored in /data/config.json:
 //   1. retentionDays         — drop syslog rows older than N days
