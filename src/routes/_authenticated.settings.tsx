@@ -518,6 +518,46 @@ function SettingsPage() {
           </div>
         </section>
 
+        {/* ---- Syslog timestamp / timezone ---- */}
+        <section className="rounded-lg border border-border bg-card p-5">
+          <h2 className="text-sm font-medium">Syslog timestamps</h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            UniFi sends syslog timestamps without a timezone, in the router's local time.
+            If your container's <code className="font-mono">TZ</code> doesn't match the router,
+            stored events will be off by the timezone difference. Set the router's UTC offset
+            (e.g. <code className="font-mono">120</code> for CEST / Stockholm summer,{" "}
+            <code className="font-mono">60</code> for CET winter, <code className="font-mono">0</code> for UTC).
+            Container time is currently{" "}
+            <code className="font-mono">{new Date().toString().match(/GMT([+-]\d{4})/)?.[1] ?? "?"}</code>.
+          </p>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Router UTC offset (minutes)">
+              <input className="input" type="number" step={15} min={-840} max={840}
+                value={syslogForm.tzOffsetMinutes}
+                onChange={(e) => setSyslogForm((f) => ({ ...f, tzOffsetMinutes: Number(e.target.value) }))} />
+            </Field>
+            <label className="flex items-center gap-2 text-xs pt-6">
+              <input type="checkbox" checked={syslogForm.useArrivalTime}
+                onChange={(e) => setSyslogForm((f) => ({ ...f, useArrivalTime: e.target.checked }))} />
+              Ignore router timestamp — stamp on arrival
+            </label>
+          </div>
+
+          <div className="mt-4 flex items-center gap-2">
+            <button onClick={saveSyslog} disabled={savingSyslog}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs bg-primary/10 hover:bg-primary/20 disabled:opacity-50">
+              <Save className="h-3.5 w-3.5" /> Save
+            </button>
+            {syslogMsg && <span className="text-[11px] text-muted-foreground">{syslogMsg}</span>}
+          </div>
+
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            Only affects new incoming syslog lines. Existing rows keep their stored timestamps.
+          </p>
+        </section>
+
+
         {/* ---- Threat intel ---- */}
         <section className="rounded-lg border border-border bg-card p-5">
           <div className="flex items-center justify-between">
