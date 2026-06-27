@@ -93,6 +93,8 @@ function SettingsPage() {
             patternsText: (s.noiseFilter.patterns ?? []).join("\n"),
           });
         }
+        // Threat-intel form: never receive the saved key — only whether one exists.
+        setThreatForm({ abuseIpdbKey: "" });
       }
       if (r) setRetention(r);
     } catch { /* preview mode */ }
