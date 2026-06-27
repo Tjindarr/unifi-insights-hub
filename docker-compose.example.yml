@@ -9,14 +9,14 @@ services:
     # the ports block below.
     network_mode: host
     # ports:
-    #   - "3000:3000/tcp"
+    #   - "8095:8095/tcp"
     #   - "514:514/udp"
     volumes:
       # Holds the SQLite DB AND config.json (UniFi credentials, retention,
       # auto-generated session secret). Survives image updates.
       - /mnt/user/appdata/unifi-dashboard:/data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8095/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -24,6 +24,6 @@ services:
 
 # First-run flow:
 #   1. docker compose up -d
-#   2. Open http://<unraid-ip>:3000, log in as admin / admin, set a new password
+#   2. Open http://<unraid-ip>:8095, log in as admin / admin, set a new password
 #   3. In Settings, fill in UniFi host, read-only user, password, site
 #   4. On the UDR: Settings → System → Remote Syslog → <unraid-ip>:514 (UDP)
