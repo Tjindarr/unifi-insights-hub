@@ -1,15 +1,34 @@
-// @lovable.dev/vite-tanstack-config already includes the following — do NOT add them manually
-// or the app will break with duplicate plugins:
-//   - tanstackStart, viteReact, tailwindcss, tsConfigPaths, nitro (build-only using cloudflare as a default target),
-//     componentTagger (dev-only), VITE_* env injection, @ path alias, React/TanStack dedupe,
-//     error logger plugins, and sandbox detection (port/host/strictPort).
-// You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
-import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import tsconfigPaths from "vite-tsconfig-paths";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 
+// Plain Vite SPA build. Outputs dist/ with a real index.html that the
+// Fastify backend serves as static. All backend logic (syslog UDP, SQLite,
+// UniFi poller, /api/*) lives in server/ — see server/index.ts.
 export default defineConfig({
-  tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    // nitro/vite builds from this
-    server: { entry: "server" },
+  plugins: [
+    tanstackRouter({
+      target: "react",
+      autoCodeSplitting: true,
+      routesDirectory: "src/routes",
+      generatedRouteTree: "src/routeTree.gen.ts",
+    }),
+    react(),
+    tailwindcss(),
+    tsconfigPaths(),
+  ],
+  server: {
+    host: true,
+    port: 8080,
+    proxy: {
+      // Forward API + WS to the Fastify dev server.
+      "/api": { target: "http://localhost:8095", changeOrigin: true, ws: true },
+    },
+  },
+  build: {
+    outDir: "dist",
+    sourcemap: false,
   },
 });
