@@ -93,14 +93,20 @@ function defaults(): AppConfig {
 }
 
 function merge(base: AppConfig, patch: Partial<AppConfig>): AppConfig {
+  const pt = patch.threatIntel;
   return {
     unifi: { ...base.unifi, ...(patch.unifi ?? {}) },
     retention: { ...base.retention, ...(patch.retention ?? {}) },
     noiseFilter: { ...base.noiseFilter, ...(patch.noiseFilter ?? {}) },
-    threatIntel: { ...base.threatIntel, ...(patch.threatIntel ?? {}) },
+    threatIntel: {
+      ...base.threatIntel,
+      ...(pt ?? {}),
+      feeds: { ...base.threatIntel.feeds, ...(pt?.feeds ?? {}) },
+    },
     sessionSecret: patch.sessionSecret || base.sessionSecret,
   };
 }
+
 
 export class ConfigStore {
   private cfg: AppConfig;
