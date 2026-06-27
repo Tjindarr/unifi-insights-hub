@@ -560,10 +560,106 @@ function SettingsPage() {
           </div>
 
           <p className="mt-3 text-[11px] text-muted-foreground">
-            Lookups are cached for 12 h per IP so a single browser session normally costs only a
-            handful of requests.
+            Per-IP <code className="font-mono">/check</code> results are cached for 7 days in
+            <code className="font-mono"> /data/unifi.db</code>, and the local threat feeds below
+            short-circuit most lookups before they spend any quota.
           </p>
         </section>
+
+        {/* ---- Offline threat feeds ---- */}
+        <section className="rounded-lg border border-border bg-card p-5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="text-sm font-medium flex items-center gap-2">
+              <Database className="h-4 w-4" /> Threat feeds (offline blocklists)
+            </h2>
+            <button
+              onClick={refreshAllFeeds}
+              disabled={refreshing !== null}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs bg-primary/10 hover:bg-primary/20 disabled:opacity-50"
+            >
+              <DownloadCloud className={`h-3.5 w-3.5 ${refreshing === "__all__" ? "animate-pulse" : ""}`} />
+              Refresh due feeds
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Public IP / CIDR blocklists are downloaded on a 24 h cycle and stored locally.
+            The Firewall page consults this cache first, so AbuseIPDB <code className="font-mono">/check</code>{" "}
+            quota is only spent on IPs that no feed has heard of.
+          </p>
+
+          <label className="mt-3 flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={checkOnMiss}
+              onChange={(e) => toggleCheckOnMiss(e.target.checked)}
+            />
+            Fall back to AbuseIPDB <code className="font-mono">/check</code> for IPs not in any feed
+            <span className="text-muted-foreground">
+              ({settings?.threatIntel?.hasAbuseIpdbKey ? "key configured" : "needs API key"})
+            </span>
+          </label>
+
+          <div className="mt-4 divide-y divide-border rounded-md border border-border overflow-hidden">
+            {feeds.length === 0 && (
+              <div className="px-3 py-4 text-xs text-muted-foreground">Loading feed status…</div>
+            )}
+            {feeds.map((f) => {
+              const total = f.ipCount + f.cidrCount;
+              const stale = f.lastUpdatedAt && Date.now() - f.lastUpdatedAt > f.intervalHours * 2 * 3600_000;
+              return (
+                <div key={f.id} className="px-3 py-3 flex items-start gap-3 bg-background/30">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={f.enabled}
+                    onChange={(e) => toggleFeed(f.id, e.target.checked)}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-medium">{f.name}</span>
+                      {f.requiresKey && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400">
+                          needs key
+                        </span>
+                      )}
+                      {f.lastError && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 truncate max-w-[260px]">
+                          {f.lastError}
+                        </span>
+                      )}
+                      {total > 0 && (
+                        <span className="text-[10px] font-mono text-muted-foreground">
+                          {f.ipCount.toLocaleString()} ips · {f.cidrCount.toLocaleString()} cidrs
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{f.description}</p>
+                    <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                      {f.lastUpdatedAt
+                        ? <>updated {formatDateTime(f.lastUpdatedAt)}{stale ? " · stale" : ""}</>
+                        : "never updated"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => refreshFeed(f.id)}
+                    disabled={refreshing !== null || (f.requiresKey && !settings?.threatIntel?.hasAbuseIpdbKey)}
+                    className="flex items-center gap-1 px-2 py-1 rounded border border-border text-[11px] hover:bg-secondary/60 disabled:opacity-40"
+                    title={f.requiresKey && !settings?.threatIntel?.hasAbuseIpdbKey ? "AbuseIPDB key required" : "Refresh now"}
+                  >
+                    <RefreshCw className={`h-3 w-3 ${refreshing === f.id ? "animate-spin" : ""}`} />
+                    Refresh
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            Defaults enabled: AbuseIPDB Blacklist (1 request/day, separate from <code className="font-mono">/check</code> quota),
+            FireHOL Level 1, and Spamhaus DROP. Toggle others on if you need wider coverage.
+          </p>
+        </section>
+
 
         {/* ---- Firewall logging tips ---- */}
         <section className="rounded-lg border border-border bg-card p-5">
