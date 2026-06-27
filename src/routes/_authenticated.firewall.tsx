@@ -77,8 +77,12 @@ function GeoCell({ ip, info }: { ip: string; info?: IpInfo }) {
 type ActionFilter = "all" | "allow" | "block" | "drop" | "failure" | "success";
 type ThreatFilter = "all" | "high" | "medium" | "low" | "clean" | "unknown";
 
+const LIMITS = [500, 1000, 2000, 5000, 10000] as const;
+type LimitOpt = typeof LIMITS[number];
+
 function FirewallPage() {
-  const { data: allEvents, isLive } = useFirewall();
+  const [limit, setLimit] = useState<LimitOpt>(1000);
+  const { data: allEvents, isLive } = useFirewall({ kind: "firewall", limit });
   const { range } = useUI();
   const { data: firewallByMinute, label: bucketLabel } = useFirewallByMinute(range);
   const [q, setQ] = useState("");
@@ -184,6 +188,14 @@ function FirewallPage() {
         actions={
           <div className="flex items-center gap-2 flex-wrap justify-end max-w-[760px]">
             <DemoBadge isLive={isLive} />
+            <select
+              value={limit}
+              onChange={(e) => setLimit(Number(e.target.value) as LimitOpt)}
+              className="h-8 rounded-md border border-border bg-card px-2 text-xs"
+              title="Maximum events to fetch"
+            >
+              {LIMITS.map((n) => <option key={n} value={n}>Last {n.toLocaleString()}</option>)}
+            </select>
 
             <button onClick={() => exportNdjson("firewall", rows)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60">
               <Download className="h-3.5 w-3.5" />NDJSON

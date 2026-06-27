@@ -54,8 +54,12 @@ const CHART_SERIES: { key: InternalCategory; label: string; color: string }[] = 
   { key: "other",         label: "Other",       color: "var(--color-chart-4)" },
 ];
 
+const LIMITS = [500, 1000, 2000, 5000, 10000] as const;
+type LimitOpt = typeof LIMITS[number];
+
 function InternalPage() {
-  const { data: events, isLive } = useFirewall();
+  const [limit, setLimit] = useState<LimitOpt>(1000);
+  const { data: events, isLive } = useFirewall({ kind: "internal", limit });
   const { range } = useUI();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -112,6 +116,14 @@ function InternalPage() {
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <DemoBadge isLive={isLive} />
+            <select
+              value={limit}
+              onChange={(e) => setLimit(Number(e.target.value) as LimitOpt)}
+              className="h-8 rounded-md border border-border bg-card px-2 text-xs"
+              title="Maximum events to fetch"
+            >
+              {LIMITS.map((n) => <option key={n} value={n}>Last {n.toLocaleString()}</option>)}
+            </select>
             <button
               onClick={() => exportNdjson("internal-events", rows)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60"

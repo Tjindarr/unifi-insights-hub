@@ -189,12 +189,16 @@ function normFw(rows: FwRow[], macToName: Map<string, string>): FirewallEvent[] 
   });
 }
 
-export function useFirewall(): Live<FirewallEvent[]> {
+export function useFirewall(opts: { kind?: "internal" | "firewall"; limit?: number } = {}): Live<FirewallEvent[]> {
   const { data: clients } = useClients();
+  const limit = opts.limit ?? 500;
+  const qs = new URLSearchParams();
+  qs.set("limit", String(limit));
+  if (opts.kind) qs.set("kind", opts.kind);
+  const key = `firewall?${qs.toString()}`;
   const { data, isLive, loading } = useLive<FwRow[] | FirewallEvent[]>(
-    "firewall",
-    () => getJson<FwRow[]>("/api/firewall?limit=500"),
-    // Use marker so we know to skip normalize
+    key,
+    () => getJson<FwRow[]>(`/api/firewall?${qs.toString()}`),
     mockFw as unknown as FwRow[],
   );
   const macToName = useMemo(() => {
