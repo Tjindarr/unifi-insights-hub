@@ -170,6 +170,7 @@ export class ConfigStore {
         feeds: { ...this.cfg.threatIntel.feeds },
         checkOnMiss: this.cfg.threatIntel.checkOnMiss,
       },
+      syslog: { ...this.cfg.syslog },
     };
   }
 
