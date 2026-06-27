@@ -18,6 +18,7 @@ type Status = {
 export class UnifiManager {
   private timer: NodeJS.Timeout | null = null;
   private client: UnifiClient | null = null;
+  private catalogLastFetch = 0;
   private status: Status = {
     enabled: false,
     configured: false,
@@ -38,6 +39,11 @@ export class UnifiManager {
     return { ok: true, ...(await this.client.diagnostics()) };
   }
 
+  async catalogProbe() {
+    if (!this.client) return { ok: false, error: "poller not running" };
+    return { ok: true, ...(await this.client.dpiCatalog()) };
+  }
+
   apply(cfg: { enabled: boolean; host: string; user: string; password: string; site: string }) {
     this.stop();
     const configured = !!(cfg.host && cfg.user && cfg.password);
@@ -52,6 +58,7 @@ export class UnifiManager {
       password: cfg.password,
       site: cfg.site || "default",
     });
+    this.catalogLastFetch = 0;
     void this.poll();
     this.timer = setInterval(() => void this.poll(), this.intervalMs);
   }
@@ -72,7 +79,6 @@ export class UnifiManager {
     const tryCall = async <T>(label: string, fn: () => Promise<T>): Promise<T | null> => {
       try { return await fn(); }
       catch (err) {
-        // Soft-fail for optional endpoints (events, dpi may be unavailable on some firmwares)
         const msg = err instanceof Error ? err.message : String(err);
         optionalErrors[label] = msg;
         console.warn(`[unifi] ${label} failed:`, msg);
@@ -80,7 +86,6 @@ export class UnifiManager {
       }
     };
     try {
-      // Required calls — failure here flips lastOk false.
       const [clients, devices, health] = await Promise.all([
         this.client.clients(),
         this.client.devices(),
@@ -90,13 +95,21 @@ export class UnifiManager {
       setSnapshot(this.db, "unifi_devices_snapshot", unwrap(devices));
       setSnapshot(this.db, "unifi_health_snapshot", unwrap(health));
 
-      // Optional calls
       const [events, dpi] = await Promise.all([
         tryCall("events", () => this.client!.events()),
         tryCall("dpi", () => this.client!.dpi()),
       ]);
       if (events) setSnapshot(this.db, "unifi_events_snapshot", unwrap(events));
       if (dpi) setSnapshot(this.db, "unifi_dpi_snapshot", unwrap(dpi));
+
+      // Refresh DPI catalog (id → name) at most once per hour.
+      if (Date.now() - this.catalogLastFetch > 60 * 60 * 1000) {
+        const cat = await tryCall("dpi-catalog", () => this.client!.dpiCatalog());
+        if (cat && (Object.keys(cat.apps).length > 0 || Object.keys(cat.categories).length > 0)) {
+          setSnapshot(this.db, "unifi_dpi_catalog_snapshot", cat);
+          this.catalogLastFetch = Date.now();
+        }
+      }
 
       this.status = { ...this.status, lastPollAt: Date.now(), lastOk: true, lastError: null, optionalErrors };
     } catch (err) {

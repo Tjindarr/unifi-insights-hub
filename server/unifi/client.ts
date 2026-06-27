@@ -210,6 +210,69 @@ export class UnifiClient {
     if (lastErr) throw lastErr;
     return { data: [] };
   }
+
+  /**
+   * Try several known UniFi endpoints that expose the DPI app & category
+   * catalog (id → name). Returns whatever the first one that works gives us.
+   * Different firmwares expose different paths; we collect what's available.
+   */
+  async dpiCatalog(): Promise<{ apps: Record<string, { name: string; category?: string | number }>; categories: Record<string, string>; sources: string[] }> {
+    const site = this.cfg.site;
+    const apps: Record<string, { name: string; category?: string | number }> = {};
+    const categories: Record<string, string> = {};
+    const sources: string[] = [];
+    const tryGet = async (label: string, path: string) => {
+      try {
+        const r: any = await this.call(path);
+        sources.push(`${label}:ok`);
+        return r;
+      } catch (e) {
+        sources.push(`${label}:err`);
+        return null;
+      }
+    };
+    const ingestAppRow = (a: any) => {
+      const id = a?.app_id ?? a?.application ?? a?.id ?? a?.appId;
+      const name = a?.app_name ?? a?.name ?? a?.application_name;
+      if (id == null || !name) return;
+      apps[String(id)] = { name: String(name), category: a?.cat_id ?? a?.category ?? a?.cat ?? a?.category_id };
+    };
+    const ingestCatRow = (c: any) => {
+      const id = c?.cat_id ?? c?.id ?? c?.category;
+      const name = c?.cat_name ?? c?.name ?? c?.category_name;
+      if (id == null || !name) return;
+      categories[String(id)] = String(name);
+    };
+    const walk = (root: any) => {
+      const arr: any[] = Array.isArray(root) ? root
+        : Array.isArray(root?.data) ? root.data
+        : Array.isArray(root?.applications) ? root.applications
+        : Array.isArray(root?.apps) ? root.apps
+        : Array.isArray(root?.categories) ? root.categories
+        : [];
+      for (const x of arr) {
+        ingestAppRow(x);
+        ingestCatRow(x);
+        if (Array.isArray(x?.apps)) for (const a of x.apps) ingestAppRow({ ...a, category: a?.category ?? x?.id ?? x?.cat_id });
+        if (Array.isArray(x?.applications)) for (const a of x.applications) ingestAppRow({ ...a, category: a?.category ?? x?.id ?? x?.cat_id });
+      }
+    };
+    const candidates: Array<[string, string]> = [
+      ["traffic-apps-v2", `/proxy/network/v2/api/site/${site}/trafficroutes/applications`],
+      ["traffic-cats-v2", `/proxy/network/v2/api/site/${site}/trafficroutes/categories`],
+      ["traffic-rules-apps", `/proxy/network/v2/api/site/${site}/trafficrules/applications`],
+      ["traffic-rules-cats", `/proxy/network/v2/api/site/${site}/trafficrules/categories`],
+      ["dpi-apps-v2", `/proxy/network/v2/api/site/${site}/dpi/applications`],
+      ["dpi-cats-v2", `/proxy/network/v2/api/site/${site}/dpi/categories`],
+      ["dpi-app-v1", `/proxy/network/api/s/${site}/stat/dpi/application`],
+      ["dpi-cat-v1", `/proxy/network/api/s/${site}/stat/dpi/category`],
+    ];
+    for (const [label, path] of candidates) {
+      const r = await tryGet(label, path);
+      if (r) walk(r);
+    }
+    return { apps, categories, sources };
+  }
 }
 
 

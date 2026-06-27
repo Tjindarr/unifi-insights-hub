@@ -281,7 +281,7 @@ export async function registerApi(
   app.get("/api/dpi", async (_req, reply) => {
     if (!requireLive()) return reply.code(204).send();
     const { mapDpi } = await import("../unifi/mappers.ts");
-    return mapDpi(snap("unifi_dpi_snapshot"));
+    return mapDpi(snap("unifi_dpi_snapshot"), snap("unifi_dpi_catalog_snapshot") as any);
   });
 
   // Debug: returns shape + small sanitized sample of each UniFi snapshot so we
@@ -293,6 +293,7 @@ export async function registerApi(
       "unifi_health_snapshot",
       "unifi_events_snapshot",
       "unifi_dpi_snapshot",
+      "unifi_dpi_catalog_snapshot",
     ];
     const out: Record<string, unknown> = {};
     for (const k of keys) {
@@ -319,15 +320,32 @@ export async function registerApi(
   // Dump raw DPI/traffic snapshot and mapped output for diagnosing empty Apps/DPI.
   app.get("/api/_debug/raw-dpi", async () => {
     const raw = snap("unifi_dpi_snapshot") as any;
+    const catalog = snap("unifi_dpi_catalog_snapshot") as any;
     const { mapDpi } = await import("../unifi/mappers.ts");
-    const mapped = mapDpi(raw);
+    const mapped = mapDpi(raw, catalog);
     const list = Array.isArray(raw?.client_usage_by_app) ? raw.client_usage_by_app
       : Array.isArray(raw?.data?.client_usage_by_app) ? raw.data.client_usage_by_app
       : Array.isArray(raw?.data) ? raw.data
       : Array.isArray(raw) ? raw
       : [];
-    return { ok: true, raw: summarize(raw), mapped, sample: list.slice(0, 3) };
+    const totals = Array.isArray(raw?.total_usage_by_app) ? raw.total_usage_by_app
+      : Array.isArray(raw?.data?.total_usage_by_app) ? raw.data.total_usage_by_app
+      : [];
+    return {
+      ok: true,
+      raw: summarize(raw),
+      catalogSize: catalog ? { apps: Object.keys(catalog?.apps ?? {}).length, categories: Object.keys(catalog?.categories ?? {}).length, sources: catalog?.sources ?? [] } : null,
+      mapped,
+      clientSample: list.slice(0, 2),
+      totalsSample: totals.slice(0, 5),
+    };
   });
+
+  // Force a catalog probe (id → name) and return what each endpoint returned.
+  app.get("/api/_debug/dpi-catalog", async () => {
+    return unifi.catalogProbe();
+  });
+
 
 
 
