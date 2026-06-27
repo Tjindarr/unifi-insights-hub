@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import { PageHeader } from "@/components/app-shell";
-import { ports, firmware, ssids } from "@/lib/mock-extra";
+import { DemoBadge } from "@/components/demo-badge";
+import { usePorts, useFirmware, useSsids } from "@/lib/live";
 import { formatBits } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -12,10 +13,15 @@ export const Route = createFileRoute("/_authenticated/ports")({
 });
 
 function PortsPage() {
+  const { data: ports, isLive: portsLive } = usePorts();
+  const { data: firmware } = useFirmware();
+  const { data: ssids } = useSsids();
   const devices = Array.from(new Set(ports.map((p) => p.device)));
-  const [dev, setDev] = useState(devices[0]);
+  const [dev, setDev] = useState(devices[0] ?? "");
+  useEffect(() => { if (!devices.includes(dev) && devices[0]) setDev(devices[0]); }, [devices, dev]);
 
   const rows = ports.filter((p) => p.device === dev);
+
 
   return (
     <div>
