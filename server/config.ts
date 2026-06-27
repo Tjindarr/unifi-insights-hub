@@ -100,6 +100,10 @@ function defaults(): AppConfig {
       },
       checkOnMiss: true,
     },
+    syslog: {
+      tzOffsetMinutes: num("SYSLOG_TZ_OFFSET_MIN", 0),
+      useArrivalTime: (env("SYSLOG_USE_ARRIVAL_TIME", "false") ?? "false") === "true",
+    },
 
     sessionSecret: env("SESSION_SECRET", "") ?? "",
   };
@@ -116,6 +120,7 @@ function merge(base: AppConfig, patch: Partial<AppConfig>): AppConfig {
       ...(pt ?? {}),
       feeds: { ...base.threatIntel.feeds, ...(pt?.feeds ?? {}) },
     },
+    syslog: { ...base.syslog, ...(patch.syslog ?? {}) },
     sessionSecret: patch.sessionSecret || base.sessionSecret,
   };
 }
