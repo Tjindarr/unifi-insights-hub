@@ -20,6 +20,7 @@ import { Route as AuthenticatedRawRouteImport } from './routes/_authenticated.ra
 import { Route as AuthenticatedPortsRouteImport } from './routes/_authenticated.ports'
 import { Route as AuthenticatedNetworkRouteImport } from './routes/_authenticated.network'
 import { Route as AuthenticatedLogsRouteImport } from './routes/_authenticated.logs'
+import { Route as AuthenticatedInternalRouteImport } from './routes/_authenticated.internal'
 import { Route as AuthenticatedFirewallRouteImport } from './routes/_authenticated.firewall'
 import { Route as AuthenticatedEventsRouteImport } from './routes/_authenticated.events'
 import { Route as AuthenticatedDpiRouteImport } from './routes/_authenticated.dpi'
@@ -79,6 +80,11 @@ const AuthenticatedLogsRoute = AuthenticatedLogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedInternalRoute = AuthenticatedInternalRouteImport.update({
+  id: '/internal',
+  path: '/internal',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedFirewallRoute = AuthenticatedFirewallRouteImport.update({
   id: '/firewall',
   path: '/firewall',
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/dpi': typeof AuthenticatedDpiRoute
   '/events': typeof AuthenticatedEventsRoute
   '/firewall': typeof AuthenticatedFirewallRoute
+  '/internal': typeof AuthenticatedInternalRoute
   '/logs': typeof AuthenticatedLogsRoute
   '/network': typeof AuthenticatedNetworkRoute
   '/ports': typeof AuthenticatedPortsRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/dpi': typeof AuthenticatedDpiRoute
   '/events': typeof AuthenticatedEventsRoute
   '/firewall': typeof AuthenticatedFirewallRoute
+  '/internal': typeof AuthenticatedInternalRoute
   '/logs': typeof AuthenticatedLogsRoute
   '/network': typeof AuthenticatedNetworkRoute
   '/ports': typeof AuthenticatedPortsRoute
@@ -141,6 +149,7 @@ export interface FileRoutesById {
   '/_authenticated/dpi': typeof AuthenticatedDpiRoute
   '/_authenticated/events': typeof AuthenticatedEventsRoute
   '/_authenticated/firewall': typeof AuthenticatedFirewallRoute
+  '/_authenticated/internal': typeof AuthenticatedInternalRoute
   '/_authenticated/logs': typeof AuthenticatedLogsRoute
   '/_authenticated/network': typeof AuthenticatedNetworkRoute
   '/_authenticated/ports': typeof AuthenticatedPortsRoute
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/dpi'
     | '/events'
     | '/firewall'
+    | '/internal'
     | '/logs'
     | '/network'
     | '/ports'
@@ -175,6 +185,7 @@ export interface FileRouteTypes {
     | '/dpi'
     | '/events'
     | '/firewall'
+    | '/internal'
     | '/logs'
     | '/network'
     | '/ports'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dpi'
     | '/_authenticated/events'
     | '/_authenticated/firewall'
+    | '/_authenticated/internal'
     | '/_authenticated/logs'
     | '/_authenticated/network'
     | '/_authenticated/ports'
@@ -287,6 +299,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLogsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/internal': {
+      id: '/_authenticated/internal'
+      path: '/internal'
+      fullPath: '/internal'
+      preLoaderRoute: typeof AuthenticatedInternalRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/firewall': {
       id: '/_authenticated/firewall'
       path: '/firewall'
@@ -323,6 +342,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDpiRoute: typeof AuthenticatedDpiRoute
   AuthenticatedEventsRoute: typeof AuthenticatedEventsRoute
   AuthenticatedFirewallRoute: typeof AuthenticatedFirewallRoute
+  AuthenticatedInternalRoute: typeof AuthenticatedInternalRoute
   AuthenticatedLogsRoute: typeof AuthenticatedLogsRoute
   AuthenticatedNetworkRoute: typeof AuthenticatedNetworkRoute
   AuthenticatedPortsRoute: typeof AuthenticatedPortsRoute
@@ -338,6 +358,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDpiRoute: AuthenticatedDpiRoute,
   AuthenticatedEventsRoute: AuthenticatedEventsRoute,
   AuthenticatedFirewallRoute: AuthenticatedFirewallRoute,
+  AuthenticatedInternalRoute: AuthenticatedInternalRoute,
   AuthenticatedLogsRoute: AuthenticatedLogsRoute,
   AuthenticatedNetworkRoute: AuthenticatedNetworkRoute,
   AuthenticatedPortsRoute: AuthenticatedPortsRoute,

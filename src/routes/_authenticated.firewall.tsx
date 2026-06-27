@@ -8,7 +8,11 @@ import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
 import { useFirewall, useFirewallByMinute } from "@/lib/live";
 import { deauthReasonMap, geoLookup } from "@/lib/mock-extra";
-import { describeFirewallEvent, shortEventLabel } from "@/lib/firewall-format";
+import {
+  describeFirewallEvent,
+  isFirewallRuleEvent,
+  shortEventLabel,
+} from "@/lib/firewall-format";
 import { ccToFlag, externalIp, threatTier, useIpInfo, type IpInfo } from "@/lib/ip-utils";
 import { formatTime, relativeTime } from "@/lib/format";
 import { exportNdjson } from "@/lib/export";
@@ -69,52 +73,82 @@ function GeoCell({ ip, info }: { ip: string; info?: IpInfo }) {
   );
 }
 
+type ActionFilter = "all" | "allow" | "block" | "drop" | "failure" | "success";
+type ThreatFilter = "all" | "high" | "medium" | "low" | "clean" | "unknown";
+
 function FirewallPage() {
-  const { data: firewallEvents, isLive } = useFirewall();
+  const { data: allEvents, isLive } = useFirewall();
   const { data: firewallByMinute } = useFirewallByMinute();
   const [q, setQ] = useState("");
-  const [action, setAction] = useState<"all" | "failure" | "success">("all");
+  const [srcQ, setSrcQ] = useState("");
+  const [dstQ, setDstQ] = useState("");
+  const [portQ, setPortQ] = useState("");
+  const [proto, setProto] = useState<"all" | "tcp" | "udp" | "icmp">("all");
+  const [action, setAction] = useState<ActionFilter>("all");
+  const [threat, setThreat] = useState<ThreatFilter>("all");
   const [view, setView] = useState<View>("list");
   const [internetOnly, setInternetOnly] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  // Tag every event with its external IP (if any) so we only do this work once.
+  // Pre-filter: this page only deals with iptables / firewall-rule hits.
+  // Wi-Fi / STA / device events live on the Internal events page.
+  const firewallEvents = useMemo(() => allEvents.filter(isFirewallRuleEvent), [allEvents]);
+
   const tagged = useMemo(
     () => firewallEvents.map((e) => ({ event: e, ext: externalIp(e) })),
     [firewallEvents],
   );
 
-  const rows = useMemo(() => {
+  // First pass — everything except threat (which needs IP info derived from these rows).
+  const prelim = useMemo(() => {
     const ql = q.toLowerCase();
-    return tagged
-      .filter(({ event: e, ext }) => {
-        if (internetOnly && !ext) return false;
-        if (action !== "all" && e.action !== action) return false;
-        if (!ql) return true;
-        return (
-          e.rule.toLowerCase().includes(ql) ||
-          e.clientMac?.toLowerCase().includes(ql) ||
-          e.clientName?.toLowerCase().includes(ql) ||
-          e.vap?.toLowerCase().includes(ql) ||
-          e.srcIp?.includes(ql) ||
-          e.dstIp?.includes(ql) ||
-          ext?.includes(ql)
-        );
-      })
-      .map(({ event }) => event);
-  }, [q, action, internetOnly, tagged]);
+    const sq = srcQ.toLowerCase();
+    const dq = dstQ.toLowerCase();
+    const pq = portQ.trim();
+    const actionMatch = (a: string) => {
+      if (action === "all") return true;
+      if (action === "block") return a === "drop" || a === "deny" || a === "block";
+      return a === action;
+    };
+    return tagged.filter(({ event: e, ext }) => {
+      if (internetOnly && !ext) return false;
+      if (!actionMatch(e.action)) return false;
+      if (proto !== "all" && (e.proto ?? "").toLowerCase() !== proto) return false;
+      if (sq && !(e.srcIp ?? "").toLowerCase().includes(sq)) return false;
+      if (dq && !(e.dstIp ?? "").toLowerCase().includes(dq)) return false;
+      if (pq && String(e.srcPort ?? "") !== pq && String(e.dstPort ?? "") !== pq) return false;
+      if (!ql) return true;
+      return (
+        e.rule.toLowerCase().includes(ql) ||
+        e.clientMac?.toLowerCase().includes(ql) ||
+        e.clientName?.toLowerCase().includes(ql) ||
+        e.vap?.toLowerCase().includes(ql) ||
+        e.srcIp?.includes(ql) ||
+        e.dstIp?.includes(ql) ||
+        ext?.includes(ql)
+      );
+    });
+  }, [tagged, q, srcQ, dstQ, portQ, proto, action, internetOnly]);
 
-  // Unique external IPs in the current filter — used to batch GeoIP/threat lookups.
+
+  // Unique external IPs in the prelim set — used to batch GeoIP/threat lookups.
   const externalIps = useMemo(() => {
     const s = new Set<string>();
-    for (const e of rows) {
-      const x = externalIp(e);
-      if (x) s.add(x);
-    }
+    for (const { ext } of prelim) if (ext) s.add(ext);
     return [...s];
-  }, [rows]);
+  }, [prelim]);
 
   const { data: ipInfo } = useIpInfo(externalIps);
+
+  // Second pass — applies threat-tier filter using the resolved IP info.
+  const rows = useMemo(() => {
+    if (threat === "all") return prelim.map((p) => p.event);
+    return prelim
+      .filter(({ ext }) => threatTier(ext ? ipInfo?.[ext]?.abuseScore : undefined) === threat)
+      .map((p) => p.event);
+  }, [prelim, ipInfo, threat]);
+
+
 
   const grouped = useMemo(() => {
     if (view === "list") return [];
@@ -146,7 +180,7 @@ function FirewallPage() {
         title="Firewall"
         description={`${rows.length} events · ${stats.failures} failures · ${stats.uniqueClients} clients · ${stats.external} internet`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end max-w-[760px]">
             <DemoBadge isLive={isLive} />
 
             <button onClick={() => exportNdjson("firewall", rows)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60">
@@ -173,13 +207,39 @@ function FirewallPage() {
               ))}
             </div>
             <div className="flex rounded-md border border-border overflow-hidden text-xs">
-              {(["all", "failure", "success"] as const).map((f) => (
+              {(["all", "allow", "block", "drop", "failure", "success"] as const).map((f) => (
                 <button key={f} onClick={() => setAction(f)} className={cn("px-2.5 py-1.5 capitalize", action === f ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-secondary/60")}>{f}</button>
               ))}
             </div>
+            <select
+              value={threat}
+              onChange={(e) => setThreat(e.target.value as ThreatFilter)}
+              className="h-8 rounded-md border border-border bg-card px-2 text-xs"
+              title="Filter by AbuseIPDB threat tier"
+            >
+              <option value="all">Threat: any</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+              <option value="clean">Clean</option>
+              <option value="unknown">Unknown</option>
+            </select>
+            <select
+              value={proto}
+              onChange={(e) => setProto(e.target.value as typeof proto)}
+              className="h-8 rounded-md border border-border bg-card px-2 text-xs"
+            >
+              <option value="all">Proto: any</option>
+              <option value="tcp">TCP</option>
+              <option value="udp">UDP</option>
+              <option value="icmp">ICMP</option>
+            </select>
+            <Input placeholder="Source IP" value={srcQ} onChange={(e) => setSrcQ(e.target.value)} className="h-8 w-32" />
+            <Input placeholder="Dest IP" value={dstQ} onChange={(e) => setDstQ(e.target.value)} className="h-8 w-32" />
+            <Input placeholder="Port" value={portQ} onChange={(e) => setPortQ(e.target.value)} className="h-8 w-20" />
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="rule, MAC, IP, VAP…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-7 h-8 w-72" />
+              <Input placeholder="rule, MAC, IP, VAP…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-7 h-8 w-56" />
             </div>
           </div>
         }
