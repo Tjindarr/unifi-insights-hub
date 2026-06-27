@@ -51,12 +51,21 @@ function parseRfc3164Time(s: string): number {
   return guess;
 }
 
-export function parseSyslog(line: string, fallbackHost = "unknown"): ParsedSyslog {
+export type ParseOptions = {
+  /** Minutes the router clock is ahead of UTC. Subtracted from parsed RFC3164 timestamps. */
+  tzOffsetMinutes?: number;
+  /** Ignore the router's timestamp and use arrival time instead. */
+  useArrivalTime?: boolean;
+};
+
+export function parseSyslog(line: string, fallbackHost = "unknown", opts: ParseOptions = {}): ParsedSyslog {
   const raw = line.replace(/\0+$/g, "").trim();
   let rest = raw;
   let severityIdx = 6;
   let facilityIdx = 1;
-  let time = Date.now();
+  const arrival = Date.now();
+  let time = arrival;
+  let timeFromRouter = false;
 
   // <priority>
   const priMatch = rest.match(/^<(\d{1,3})>/);
@@ -71,7 +80,22 @@ export function parseSyslog(line: string, fallbackHost = "unknown"): ParsedSyslo
   const tsMatch = rest.match(/^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+/);
   if (tsMatch) {
     time = parseRfc3164Time(tsMatch[1]);
+    timeFromRouter = true;
     rest = rest.slice(tsMatch[0].length);
+  }
+
+  // Apply timezone correction: router timestamp is in its local time, which we
+  // interpreted as the container's local time. Shift by the configured offset
+  // (minutes router-is-ahead-of-UTC minus container offset already applied).
+  if (timeFromRouter && opts.tzOffsetMinutes) {
+    // Container-local interpretation already baked in its own offset; we want
+    // to land on UTC ms representing the router's wall clock.
+    const containerOffset = -new Date(time).getTimezoneOffset(); // minutes east of UTC
+    const delta = (opts.tzOffsetMinutes - containerOffset) * 60_000;
+    time = time - delta;
+  }
+  if (opts.useArrivalTime || !timeFromRouter) {
+    time = arrival;
   }
 
   // host

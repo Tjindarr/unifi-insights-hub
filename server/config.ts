@@ -36,12 +36,25 @@ export type ThreatIntelSettings = {
   checkOnMiss: boolean;
 };
 
+export type SyslogSettings = {
+  /**
+   * Offset in minutes that the router's clock is AHEAD of UTC.
+   * UniFi RFC3164 timestamps have no timezone — set this to your router's
+   * timezone offset (e.g. 120 for CEST, 60 for CET, -300 for EST).
+   * Use 0 if your container TZ already matches the router.
+   */
+  tzOffsetMinutes: number;
+  /** When true, ignore the router's timestamp and stamp on arrival. */
+  useArrivalTime: boolean;
+};
+
 
 export type AppConfig = {
   unifi: UnifiSettings;
   retention: RetentionSettings;
   noiseFilter: NoiseFilterSettings;
   threatIntel: ThreatIntelSettings;
+  syslog: SyslogSettings;
   sessionSecret: string;
 };
 
@@ -87,6 +100,10 @@ function defaults(): AppConfig {
       },
       checkOnMiss: true,
     },
+    syslog: {
+      tzOffsetMinutes: num("SYSLOG_TZ_OFFSET_MIN", 0),
+      useArrivalTime: (env("SYSLOG_USE_ARRIVAL_TIME", "false") ?? "false") === "true",
+    },
 
     sessionSecret: env("SESSION_SECRET", "") ?? "",
   };
@@ -103,6 +120,7 @@ function merge(base: AppConfig, patch: Partial<AppConfig>): AppConfig {
       ...(pt ?? {}),
       feeds: { ...base.threatIntel.feeds, ...(pt?.feeds ?? {}) },
     },
+    syslog: { ...base.syslog, ...(patch.syslog ?? {}) },
     sessionSecret: patch.sessionSecret || base.sessionSecret,
   };
 }
@@ -152,6 +170,7 @@ export class ConfigStore {
         feeds: { ...this.cfg.threatIntel.feeds },
         checkOnMiss: this.cfg.threatIntel.checkOnMiss,
       },
+      syslog: { ...this.cfg.syslog },
     };
   }
 

@@ -149,6 +149,7 @@ export async function registerApi(
         feeds: Record<string, boolean>;
         checkOnMiss: boolean;
       }>;
+      syslog?: Partial<{ tzOffsetMinutes: number; useArrivalTime: boolean }>;
     };
   }>("/api/settings", async (req, reply) => {
     const body = req.body ?? {};
@@ -206,7 +207,14 @@ export async function registerApi(
       }
       patch.threatIntel = ti;
     }
-    if (!patch.unifi && !patch.retention && !patch.noiseFilter && !patch.threatIntel) {
+    if (body.syslog) {
+      const s = { ...current.syslog, ...body.syslog };
+      const n = Math.floor(Number(s.tzOffsetMinutes) || 0);
+      s.tzOffsetMinutes = Math.min(840, Math.max(-840, n));
+      s.useArrivalTime = !!s.useArrivalTime;
+      patch.syslog = s;
+    }
+    if (!patch.unifi && !patch.retention && !patch.noiseFilter && !patch.threatIntel && !patch.syslog) {
       return reply.code(400).send({ ok: false, error: "no changes" });
     }
     config.update(patch);
