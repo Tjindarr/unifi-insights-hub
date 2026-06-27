@@ -411,6 +411,83 @@ function SettingsPage() {
           </div>
         </section>
 
+        {/* ---- Threat intel ---- */}
+        <section className="rounded-lg border border-border bg-card p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4" /> Threat intelligence
+            </h2>
+            <span
+              className={`text-[11px] font-mono px-2 py-1 rounded ${
+                settings?.threatIntel?.hasAbuseIpdbKey
+                  ? "bg-emerald-500/10 text-emerald-400"
+                  : "bg-secondary/60 text-muted-foreground"
+              }`}
+            >
+              {settings?.threatIntel?.hasAbuseIpdbKey ? "key saved" : "not configured"}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Adds a confidence score and reports count to every external IP on the Firewall page.
+            Get a free key at{" "}
+            <a
+              href="https://www.abuseipdb.com/account/api"
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-foreground"
+            >
+              abuseipdb.com/account/api
+            </a>{" "}
+            (1,000 lookups/day on the free tier). Without a key, the Firewall page still shows
+            country and ISP via the geo lookup.
+          </p>
+
+          <div className="mt-4">
+            <Field
+              label={
+                settings?.threatIntel?.hasAbuseIpdbKey
+                  ? "AbuseIPDB API key (leave blank to keep saved)"
+                  : "AbuseIPDB API key"
+              }
+            >
+              <input
+                className="input"
+                type="password"
+                autoComplete="off"
+                placeholder={settings?.threatIntel?.hasAbuseIpdbKey ? "••••••••" : ""}
+                value={threatForm.abuseIpdbKey}
+                onChange={(e) => setThreatForm({ abuseIpdbKey: e.target.value })}
+              />
+            </Field>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => saveThreat()}
+              disabled={savingThreat || !threatForm.abuseIpdbKey}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs bg-primary/10 hover:bg-primary/20 disabled:opacity-50"
+            >
+              <Save className="h-3.5 w-3.5" /> Save key
+            </button>
+            {settings?.threatIntel?.hasAbuseIpdbKey && (
+              <button
+                onClick={() => saveThreat({ clear: true })}
+                disabled={savingThreat}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60 disabled:opacity-50"
+              >
+                <XCircle className="h-3.5 w-3.5" /> Remove key
+              </button>
+            )}
+            {threatMsg && <span className="text-[11px] text-muted-foreground">{threatMsg}</span>}
+          </div>
+
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            Lookups are cached for 12 h per IP so a single browser session normally costs only a
+            handful of requests.
+          </p>
+        </section>
+
+
         <section className="rounded-lg border border-border bg-card p-5">
           <h2 className="text-sm font-medium">Unraid install</h2>
           <p className="text-xs text-muted-foreground mt-1">
