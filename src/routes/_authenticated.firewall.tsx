@@ -7,6 +7,7 @@ import { PageHeader, SeverityDot } from "@/components/app-shell";
 import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
 import { useFirewall, useFirewallByMinute } from "@/lib/live";
+import { useUI } from "@/lib/ui-store";
 import { deauthReasonMap, geoLookup } from "@/lib/mock-extra";
 import {
   describeFirewallEvent,
@@ -78,7 +79,8 @@ type ThreatFilter = "all" | "high" | "medium" | "low" | "clean" | "unknown";
 
 function FirewallPage() {
   const { data: allEvents, isLive } = useFirewall();
-  const { data: firewallByMinute } = useFirewallByMinute();
+  const { range } = useUI();
+  const { data: firewallByMinute, label: bucketLabel } = useFirewallByMinute(range);
   const [q, setQ] = useState("");
   const [srcQ, setSrcQ] = useState("");
   const [dstQ, setDstQ] = useState("");
@@ -247,7 +249,10 @@ function FirewallPage() {
 
       <div className="p-6 space-y-4">
         <div className="rounded-lg border border-border bg-card">
-          <div className="px-4 pt-3"><h2 className="text-xs uppercase tracking-wider text-muted-foreground">Events / minute</h2></div>
+          <div className="px-4 pt-3 flex items-center justify-between">
+            <h2 className="text-xs uppercase tracking-wider text-muted-foreground">Events {bucketLabel}</h2>
+            <span className="text-[10px] text-muted-foreground tabular-nums">{rows.length} in window</span>
+          </div>
           <div className="h-32 p-2">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={firewallByMinute} stackOffset="sign">

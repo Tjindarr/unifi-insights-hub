@@ -187,19 +187,66 @@ export function useFirewall(): Live<FirewallEvent[]> {
   return { data: normalized, isLive, loading };
 }
 
-// Derived: events per minute (success vs failure)
-export function useFirewallByMinute() {
-  const { data, isLive } = useFirewall();
-  if (!isLive) return { data: mockFwByMin, isLive: false };
-  const buckets: Record<string, { t: string; failure: number; success: number }> = {};
-  for (const e of data) {
-    const d = new Date(e.time); d.setSeconds(0, 0);
-    const t = d.toISOString();
-    buckets[t] ??= { t, failure: 0, success: 0 };
-    if (e.action === "failure") buckets[t].failure++;
-    else buckets[t].success++;
+// Bucket sizing for time-range driven charts.
+import type { TimeRangeKey } from "./ui-store";
+
+export function bucketSpecForRange(range: TimeRangeKey): { windowMs: number; bucketMs: number; label: string } {
+  switch (range) {
+    case "15m": return { windowMs: 15 * 60_000,        bucketMs:        60_000, label: "per minute" };
+    case "1h":  return { windowMs: 60 * 60_000,        bucketMs:        60_000, label: "per minute" };
+    case "24h": return { windowMs: 24 * 60 * 60_000,   bucketMs:   15 * 60_000, label: "per 15 min" };
+    case "7d":  return { windowMs: 7 * 24 * 60 * 60_000, bucketMs: 60 * 60_000, label: "per hour" };
+    case "30d": return { windowMs: 30 * 24 * 60 * 60_000, bucketMs: 6 * 60 * 60_000, label: "per 6 hours" };
   }
-  return { data: Object.values(buckets).sort((a, b) => a.t.localeCompare(b.t)), isLive: true };
+}
+
+function bucketEvents<T extends string>(
+  events: { time: string; key: T }[],
+  range: TimeRangeKey,
+  keys: readonly T[],
+): { t: string; [k: string]: number | string }[] {
+  const { windowMs, bucketMs } = bucketSpecForRange(range);
+  const now = Date.now();
+  const start = now - windowMs;
+  const emptyRow = () => Object.fromEntries(keys.map((k) => [k, 0])) as Record<T, number>;
+  const buckets = new Map<number, Record<T, number>>();
+  // Seed empty buckets so the chart spans the full window even when sparse.
+  const first = Math.floor(start / bucketMs) * bucketMs;
+  for (let t = first; t <= now; t += bucketMs) buckets.set(t, emptyRow());
+  for (const e of events) {
+    const ms = new Date(e.time).getTime();
+    if (ms < start || ms > now) continue;
+    const slot = Math.floor(ms / bucketMs) * bucketMs;
+    const row = buckets.get(slot) ?? emptyRow();
+    row[e.key] = (row[e.key] ?? 0) + 1;
+    buckets.set(slot, row);
+  }
+  return [...buckets.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([t, row]) => ({ t: new Date(t).toISOString(), ...row }));
+}
+
+// Derived: firewall events bucketed for the active time range (success vs failure).
+export function useFirewallByMinute(range: TimeRangeKey = "1h") {
+  const { data, isLive } = useFirewall();
+  if (!isLive) return { data: mockFwByMin, isLive: false, label: "per minute" };
+  const mapped = data.map((e) => ({ time: e.time, key: e.action === "failure" ? "failure" as const : "success" as const }));
+  const rows = bucketEvents(mapped, range, ["success", "failure"] as const);
+  return { data: rows, isLive: true, label: bucketSpecForRange(range).label };
+}
+
+// Internal events bucketed for the active time range, by category.
+export function useInternalByBucket(
+  events: FirewallEvent[],
+  categorise: (e: FirewallEvent) => string,
+  categories: readonly string[],
+  range: TimeRangeKey = "1h",
+) {
+  const mapped = events.map((e) => ({ time: e.time, key: categorise(e) }));
+  return {
+    data: bucketEvents(mapped, range, categories),
+    label: bucketSpecForRange(range).label,
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChevronRight, Download, Search } from "lucide-react";
 
 import { PageHeader, SeverityDot } from "@/components/app-shell";
 import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
-import { useFirewall } from "@/lib/live";
+import { useFirewall, useInternalByBucket } from "@/lib/live";
+import { useUI } from "@/lib/ui-store";
 import {
   describeFirewallEvent,
   internalCategory,
@@ -43,8 +45,18 @@ const CATEGORY_STYLE: Record<InternalCategory, string> = {
   "other": "bg-secondary/40 text-muted-foreground",
 };
 
+const CHART_SERIES: { key: InternalCategory; label: string; color: string }[] = [
+  { key: "connect",       label: "Connect",     color: "var(--color-chart-2)" },
+  { key: "auth-success",  label: "Auth ok",     color: "var(--color-primary)" },
+  { key: "roam",          label: "Roam",        color: "var(--color-chart-3)" },
+  { key: "disconnect",    label: "Disconnect",  color: "var(--color-muted-foreground)" },
+  { key: "auth-failure",  label: "Auth fail",   color: "var(--color-severity-error)" },
+  { key: "other",         label: "Other",       color: "var(--color-chart-4)" },
+];
+
 function InternalPage() {
   const { data: events, isLive } = useFirewall();
+  const { range } = useUI();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -80,6 +92,17 @@ function InternalPage() {
       })
       .map(({ e }) => e);
   }, [categorised, filter, q]);
+
+  const { data: byBucket, label: bucketLabel } = useInternalByBucket(
+    internal,
+    internalCategory,
+    CHART_SERIES.map((s) => s.key),
+    range,
+  );
+  const windowTotal = useMemo(
+    () => byBucket.reduce((s, r) => s + CHART_SERIES.reduce((a, c) => a + (Number(r[c.key]) || 0), 0), 0),
+    [byBucket],
+  );
 
   return (
     <div>
@@ -127,7 +150,57 @@ function InternalPage() {
         }
       />
 
-      <div className="p-6">
+      <div className="p-6 space-y-4">
+        <div className="rounded-lg border border-border bg-card">
+          <div className="px-4 pt-3 flex items-center justify-between">
+            <h2 className="text-xs uppercase tracking-wider text-muted-foreground">
+              Events {bucketLabel}
+            </h2>
+            <span className="text-[10px] text-muted-foreground tabular-nums">
+              {windowTotal} in selected window
+            </span>
+          </div>
+          <div className="h-36 p-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={byBucket}>
+                <XAxis
+                  dataKey="t"
+                  tickFormatter={(t) => formatTime(t)}
+                  tick={{ fill: "var(--color-muted-foreground)", fontSize: 10 }}
+                  stroke="var(--color-border)"
+                  minTickGap={50}
+                />
+                <YAxis
+                  tick={{ fill: "var(--color-muted-foreground)", fontSize: 10 }}
+                  stroke="var(--color-border)"
+                  width={30}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-popover)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 6,
+                    fontSize: 11,
+                  }}
+                  labelFormatter={(t) => formatTime(t)}
+                />
+                {CHART_SERIES.map((s) => (
+                  <Bar key={s.key} dataKey={s.key} stackId="a" fill={s.color} name={s.label} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex flex-wrap gap-3 px-4 pb-3 text-[10px] text-muted-foreground">
+            {CHART_SERIES.map((s) => (
+              <span key={s.key} className="inline-flex items-center gap-1.5">
+                <span className="inline-block h-2 w-2 rounded-sm" style={{ background: s.color }} />
+                {s.label}
+                <span className="tabular-nums">({counts[s.key] ?? 0})</span>
+              </span>
+            ))}
+          </div>
+        </div>
+
         <div className="rounded-lg border border-border bg-card overflow-hidden">
           <ul className="divide-y divide-border">
             {rows.map((e) => {
