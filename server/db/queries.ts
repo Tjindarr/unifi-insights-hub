@@ -172,7 +172,21 @@ export function recentFirewall(
   const where: string[] = [];
   const params: Record<string, unknown> = {};
   if (opts.kind === "internal") where.push(INTERNAL_WHERE);
-  else if (opts.kind === "firewall") where.push(`NOT ${INTERNAL_WHERE}`);
+  else if (opts.kind === "firewall") {
+    // Positive predicate: rows that actually look like an iptables / UniFi
+    // firewall-rule hit. Using the complement of INTERNAL_WHERE turned out to
+    // be too aggressive — events whose `rule` is the friendly DESCR name
+    // ("Allow Established") were filtered out incorrectly. A firewall row has
+    // either SRC/DST IPs or a recognisable rule tag prefix.
+    where.push(`(
+      src_ip IS NOT NULL
+      OR dst_ip IS NOT NULL
+      OR rule LIKE 'LAN\\_%' ESCAPE '\\'
+      OR rule LIKE 'WAN\\_%' ESCAPE '\\'
+      OR rule LIKE 'GUEST\\_%' ESCAPE '\\'
+      OR rule IN ('UFW','UBNT','FW')
+    )`);
+  }
   if (opts.action) {
     where.push("action = @action");
     params.action = opts.action;
