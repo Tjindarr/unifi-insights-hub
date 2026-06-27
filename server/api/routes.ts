@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 
 import {
   dbStats,
+  firewallBuckets,
   getSnapshot,
   recentFirewall,
   recentSyslog,
