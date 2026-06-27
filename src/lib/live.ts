@@ -274,7 +274,7 @@ function bucketEvents<T extends string>(
 // Derived: firewall events bucketed for the active time range (success vs failure).
 // Backed by a dedicated SQL aggregation endpoint so the chart spans the whole
 // window even when the table only fetched the most recent 500 rows.
-export function useFirewallByMinute(range: TimeRangeKey = "1h") {
+export function useFirewallByMinute(range: TimeRangeKey = "1h", fallbackEvents: FirewallEvent[] = []) {
   const spec = bucketSpecForRange(range);
   // Use a stable query key per range so we don't drop cached data every time
   // the bucket boundary advances (that caused the chart to flash empty). The
@@ -308,6 +308,18 @@ export function useFirewallByMinute(range: TimeRangeKey = "1h") {
   for (let t = first; t <= latest; t += spec.bucketMs) {
     const r = rowByT.get(t);
     out.push({ t: new Date(t).toISOString(), success: r?.success ?? 0, failure: r?.failure ?? 0 });
+  }
+  const hasServerCounts = out.some((r) => r.success > 0 || r.failure > 0);
+  if (!hasServerCounts && fallbackEvents.length) {
+    return {
+      data: bucketEvents(
+        fallbackEvents.map((e) => ({ time: e.time, key: e.action === "failure" ? "failure" : "success" })),
+        range,
+        ["success", "failure"] as const,
+      ),
+      isLive: true,
+      label: spec.label,
+    };
   }
   return { data: out, isLive: true, label: spec.label };
 }
