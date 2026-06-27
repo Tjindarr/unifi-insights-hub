@@ -187,12 +187,23 @@ export async function registerApi(
     if (body.threatIntel) {
       // Empty string clears the key; undefined means "leave saved value".
       const incoming = body.threatIntel.abuseIpdbKey;
-      patch.threatIntel = {
+      const ti: Partial<typeof current.threatIntel> = {
         abuseIpdbKey:
           incoming === undefined
             ? current.threatIntel.abuseIpdbKey
             : String(incoming).trim().slice(0, 256),
       };
+      if (body.threatIntel.feeds && typeof body.threatIntel.feeds === "object") {
+        const merged: Record<string, boolean> = { ...current.threatIntel.feeds };
+        for (const [k, v] of Object.entries(body.threatIntel.feeds)) {
+          merged[String(k)] = !!v;
+        }
+        ti.feeds = merged;
+      }
+      if (typeof body.threatIntel.checkOnMiss === "boolean") {
+        ti.checkOnMiss = body.threatIntel.checkOnMiss;
+      }
+      patch.threatIntel = ti;
     }
     if (!patch.unifi && !patch.retention && !patch.noiseFilter && !patch.threatIntel) {
       return reply.code(400).send({ ok: false, error: "no changes" });
