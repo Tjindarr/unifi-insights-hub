@@ -28,6 +28,7 @@ type Settings = {
     vacuumHours: number;
   };
   noiseFilter: { enabled: boolean; action: "drop" | "downgrade"; patterns: string[] };
+  threatIntel?: { hasAbuseIpdbKey: boolean };
   unifiStatus?: UnifiStatus;
 };
 
