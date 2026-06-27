@@ -10,7 +10,8 @@ import {
 } from "recharts";
 
 import { PageHeader, StatTile } from "@/components/app-shell";
-import { accessPoints, siteHealth, wanThroughput } from "@/lib/mock-data";
+import { DemoBadge } from "@/components/demo-badge";
+import { useAccessPoints, useWan, useWanThroughput } from "@/lib/live";
 import { formatBits } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -28,12 +29,16 @@ function formatUptime(sec: number) {
 }
 
 function NetworkPage() {
+  const { data: wan, isLive } = useWan();
+  const { data: accessPoints } = useAccessPoints();
+  const wanThroughput = useWanThroughput();
   const peakRx = Math.max(...wanThroughput.map((p) => p.rx));
   const peakTx = Math.max(...wanThroughput.map((p) => p.tx));
 
   return (
     <div>
-      <PageHeader title="Network" description="Site health, WAN, and access points" />
+      <PageHeader title="Network" description="Site health, WAN, and access points" actions={<DemoBadge isLive={isLive} />} />
+
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StatTile
