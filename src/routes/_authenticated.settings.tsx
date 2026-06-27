@@ -78,6 +78,9 @@ function SettingsPage() {
   const [threatForm, setThreatForm] = useState({ abuseIpdbKey: "" });
   const [savingThreat, setSavingThreat] = useState(false);
   const [threatMsg, setThreatMsg] = useState<string | null>(null);
+  const [feeds, setFeeds] = useState<FeedStatus[]>([]);
+  const [checkOnMiss, setCheckOnMiss] = useState(true);
+  const [refreshing, setRefreshing] = useState<string | null>(null);
   const [savingUnifi, setSavingUnifi] = useState(false);
   const [savingRet, setSavingRet] = useState(false);
   const [savingNoise, setSavingNoise] = useState(false);
