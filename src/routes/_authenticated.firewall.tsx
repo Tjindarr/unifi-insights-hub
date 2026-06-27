@@ -201,6 +201,21 @@ function FirewallPage() {
           </div>
         </div>
 
+        {internetOnly && rows.length === 0 && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+            <div className="font-medium text-amber-100">No internet traffic in syslog</div>
+            <p className="mt-1 text-amber-200/80 leading-relaxed">
+              The UDR only forwards firewall events for rules with <strong>Logging</strong> enabled.
+              In the UniFi Network app, open{" "}
+              <strong>Settings → Security → Traffic &amp; Firewall Rules → Internet</strong>,
+              edit a <strong>Block</strong> rule (e.g. the default "Block External → Internal"),
+              and toggle Logging on. Events should start appearing within ~10 seconds of the
+              next matching connection. See <em>Settings → Firewall logging on the UDR</em> for
+              the full guide.
+            </p>
+          </div>
+        )}
+
         {view !== "list" ? (
           <div className="rounded-lg border border-border bg-card overflow-hidden">
             <table className="w-full text-sm">
