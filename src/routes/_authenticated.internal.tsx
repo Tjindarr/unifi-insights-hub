@@ -93,6 +93,17 @@ function InternalPage() {
       .map(({ e }) => e);
   }, [categorised, filter, q]);
 
+  const { data: byBucket, label: bucketLabel } = useInternalByBucket(
+    internal,
+    internalCategory,
+    CHART_SERIES.map((s) => s.key),
+    range,
+  );
+  const windowTotal = useMemo(
+    () => byBucket.reduce((s, r) => s + CHART_SERIES.reduce((a, c) => a + (Number(r[c.key]) || 0), 0), 0),
+    [byBucket],
+  );
+
   return (
     <div>
       <PageHeader
