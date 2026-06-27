@@ -9,7 +9,12 @@ COPY package.json bun.lock ./
 # bun is faster but isn't in node:alpine — use npm which respects the lockfile fallback.
 RUN npm install --no-audit --no-fund
 COPY . .
-RUN npm run build
+RUN npm run build && \
+    echo "=== dist tree after build ===" && \
+    ls -la /app/dist && \
+    ls -la /app/dist/client && \
+    test -f /app/dist/client/index.html
+
 
 FROM node:22-alpine AS server
 WORKDIR /app
