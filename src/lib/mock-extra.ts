@@ -123,7 +123,7 @@ export type SiteEvent = {
   title: string;
   detail: string;
 };
-export const siteEvents: SiteEvent[] = [
+const eventSeed: Omit<SiteEvent, "id" | "time">[] = [
   { kind: "admin",    severity: "info",  title: "Admin login",            detail: "user: niels from 192.168.1.45" },
   { kind: "wan",      severity: "warn",  title: "WAN flap",               detail: "Bahnhof Fiber: 14s downtime" },
   { kind: "firmware", severity: "info",  title: "Firmware available",     detail: "U7-Pro-XG 8.7.0 ready" },
@@ -132,7 +132,8 @@ export const siteEvents: SiteEvent[] = [
   { kind: "wan",      severity: "info",  title: "Speed test complete",    detail: "↓ 938 Mbps / ↑ 472 Mbps" },
   { kind: "client",   severity: "info",  title: "New client",             detail: "tesla-wall joined LAN" },
   { kind: "admin",    severity: "info",  title: "Config backup",          detail: "auto-saved 18 KB" },
-].map((e, i) => ({
+];
+export const siteEvents: SiteEvent[] = eventSeed.map((e, i) => ({
   ...e,
   id: `ev${i}`,
   time: new Date(Date.now() - (i + 1) * 17 * 60_000).toISOString(),
