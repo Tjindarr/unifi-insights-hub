@@ -25,30 +25,27 @@ import {
 } from "./db/queries.ts";
 import { parseSyslog } from "./syslog/parser.ts";
 import { extractFirewall } from "./syslog/unifi-firewall.ts";
-import { UnifiClient } from "./unifi/client.ts";
+import { UnifiManager } from "./unifi/manager.ts";
 import { makeAuth } from "./auth.ts";
 import { registerApi } from "./api/routes.ts";
+import { ConfigStore } from "./config.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const env = (k: string, fallback?: string) => process.env[k] ?? fallback;
-const req = (k: string) => {
-  const v = process.env[k];
-  if (!v) throw new Error(`Missing required env var ${k}`);
-  return v;
-};
 
 const HTTP_PORT = Number(env("HTTP_PORT", "3000"));
 const SYSLOG_UDP_PORT = Number(env("SYSLOG_UDP_PORT", "514"));
 const DB_PATH = env("DB_PATH", "/data/unifi.db")!;
-const RETENTION_DAYS = Number(env("RETENTION_DAYS", "30"));
-const RETENTION_FIREWALL_DAYS = Number(env("RETENTION_FIREWALL_DAYS", String(RETENTION_DAYS)));
-const RETENTION_MAX_DB_MB = Number(env("RETENTION_MAX_DB_MB", "2048"));
-const RETENTION_INTERVAL_MIN = Number(env("RETENTION_INTERVAL_MIN", "60"));
-const RETENTION_VACUUM_HOURS = Number(env("RETENTION_VACUUM_HOURS", "24"));
+const CONFIG_PATH = env("CONFIG_PATH", "/data/config.json")!;
+
+// Persistent config in /data — survives container updates. Env vars only seed
+// the file on first launch; the UI is the source of truth thereafter.
+const config = new ConfigStore(CONFIG_PATH);
 
 const db = openDb(DB_PATH);
 const insertSyslog = makeSyslogInsert(db);
 const insertFirewall = makeFirewallInsert(db);
+
 
 // ---- UDP syslog listener ----
 
