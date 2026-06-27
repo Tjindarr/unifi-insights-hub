@@ -149,6 +149,8 @@ export class ConfigStore {
       noiseFilter: { ...this.cfg.noiseFilter },
       threatIntel: {
         hasAbuseIpdbKey: !!this.cfg.threatIntel.abuseIpdbKey,
+        feeds: { ...this.cfg.threatIntel.feeds },
+        checkOnMiss: this.cfg.threatIntel.checkOnMiss,
       },
     };
   }
