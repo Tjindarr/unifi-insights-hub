@@ -55,19 +55,37 @@ export class UnifiManager {
 
   private async poll() {
     if (!this.client) return;
+    const unwrap = (x: unknown) =>
+      x && typeof x === "object" && "data" in (x as Record<string, unknown>)
+        ? (x as { data: unknown }).data
+        : x;
+    const tryCall = async <T>(label: string, fn: () => Promise<T>): Promise<T | null> => {
+      try { return await fn(); }
+      catch (err) {
+        // Soft-fail for optional endpoints (events, dpi may be unavailable on some firmwares)
+        console.warn(`[unifi] ${label} failed:`, err instanceof Error ? err.message : err);
+        return null;
+      }
+    };
     try {
+      // Required calls — failure here flips lastOk false.
       const [clients, devices, health] = await Promise.all([
         this.client.clients(),
         this.client.devices(),
         this.client.health(),
       ]);
-      const unwrap = (x: unknown) =>
-        x && typeof x === "object" && "data" in (x as Record<string, unknown>)
-          ? (x as { data: unknown }).data
-          : x;
       setSnapshot(this.db, "unifi_clients_snapshot", unwrap(clients));
       setSnapshot(this.db, "unifi_devices_snapshot", unwrap(devices));
       setSnapshot(this.db, "unifi_health_snapshot", unwrap(health));
+
+      // Optional calls
+      const [events, dpi] = await Promise.all([
+        tryCall("events", () => this.client!.events()),
+        tryCall("dpi", () => this.client!.dpi()),
+      ]);
+      if (events) setSnapshot(this.db, "unifi_events_snapshot", unwrap(events));
+      if (dpi) setSnapshot(this.db, "unifi_dpi_snapshot", unwrap(dpi));
+
       this.status = { ...this.status, lastPollAt: Date.now(), lastOk: true, lastError: null };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -75,6 +93,7 @@ export class UnifiManager {
       console.error("[unifi] poll failed", msg);
     }
   }
+
 
   /** One-shot connectivity check using arbitrary (unsaved) credentials. */
   static async test(cfg: UnifiConfig): Promise<{ ok: boolean; error?: string }> {
