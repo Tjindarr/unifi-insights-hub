@@ -115,12 +115,23 @@ export class UnifiClient {
 
   async diagnostics(): Promise<{ events: ProbeResult[]; dpi: ProbeResult[] }> {
     const site = this.cfg.site;
-    const events = await Promise.all([
-      this.probe("events-v2", `/proxy/network/v2/api/site/${site}/events?within=168&limit=100`),
-      this.probe("events-v1-post", `/proxy/network/api/s/${site}/stat/event`, { _limit: 100, within: 168 }),
-      this.probe("events-v1-get", `/proxy/network/api/s/${site}/stat/event?_limit=100`),
-      this.probe("events-rest", `/proxy/network/api/s/${site}/rest/event?_limit=100`),
-    ]);
+    const slCats = ["next-ai-alerts", "triggers", "device-events", "client-events", "admin-activity", "threats", "updates", "vpn"];
+    const events: ProbeResult[] = [];
+    for (const cat of slCats) {
+      events.push(
+        await this.probe(
+          `system-log-${cat}`,
+          `/proxy/network/v2/api/site/${site}/system-log/${cat}`,
+          { pageNumber: 0, pageSize: 50, timeframeFilter: { timeframe: "24h" } },
+        ),
+      );
+    }
+    events.push(
+      await this.probe("events-v2", `/proxy/network/v2/api/site/${site}/events?within=168&limit=100`),
+      await this.probe("events-v1-post", `/proxy/network/api/s/${site}/stat/event`, { _limit: 100, within: 168 }),
+      await this.probe("events-v1-get", `/proxy/network/api/s/${site}/stat/event?_limit=100`),
+      await this.probe("events-rest", `/proxy/network/api/s/${site}/rest/event?_limit=100`),
+    );
     const dpi = await Promise.all([
       this.probe("sitedpi-by-app", `/proxy/network/api/s/${site}/stat/sitedpi`, { type: "by_app" }),
       this.probe("sitedpi-by-cat", `/proxy/network/api/s/${site}/stat/sitedpi`, { type: "by_cat" }),
@@ -141,24 +152,37 @@ export class UnifiClient {
     return this.call(`/proxy/network/api/s/${this.cfg.site}/stat/health`);
   }
   async events() {
-    // UDR / UniFi OS firmwares differ. Try v2 first (current Network app),
-    // then v1 POST, then v1 GET. Whichever responds is returned.
+    // Modern UniFi Network (8.x+) on UDR7 exposes events through system-log,
+    // not /stat/event. Query the most useful categories and merge them.
     const site = this.cfg.site;
+    const cats = ["device-events", "client-events", "admin-activity", "triggers", "next-ai-alerts", "threats", "updates", "vpn"];
+    const merged: any[] = [];
+    for (const cat of cats) {
+      try {
+        const r: any = await this.call(
+          `/proxy/network/v2/api/site/${site}/system-log/${cat}`,
+          { pageNumber: 0, pageSize: 50, timeframeFilter: { timeframe: "24h" } },
+        );
+        const list: any[] = Array.isArray(r?.data) ? r.data
+          : Array.isArray(r?.data?.data) ? r.data.data
+          : Array.isArray(r) ? r : [];
+        for (const it of list) merged.push({ ...it, __category: cat });
+      } catch {
+        // Try the legacy event endpoint as a last resort
+      }
+    }
+    if (merged.length > 0) return { data: merged };
+    // Legacy fallback for older controllers
     const attempts: Array<() => Promise<unknown>> = [
       () => this.call(`/proxy/network/v2/api/site/${site}/events?within=168&limit=100`),
       () => this.call(`/proxy/network/api/s/${site}/stat/event`, { _limit: 100, within: 168 }),
       () => this.call(`/proxy/network/api/s/${site}/stat/event?_limit=100`),
-      () => this.call(`/proxy/network/api/s/${site}/rest/event?_limit=100`),
     ];
-    let lastErr: unknown = null;
-    for (const fn of attempts) {
-      try { return await fn(); } catch (e) { lastErr = e; }
-    }
-    throw lastErr ?? new Error("events: all endpoints failed");
+    for (const fn of attempts) { try { return await fn(); } catch {} }
+    return { data: [] };
   }
   async dpi() {
     const site = this.cfg.site;
-    // Site-wide DPI aggregated by app + category. UniFi expects POST with body.
     const attempts: Array<() => Promise<unknown>> = [
       () => this.call(`/proxy/network/api/s/${site}/stat/sitedpi`, { type: "by_app" }),
       () => this.call(`/proxy/network/api/s/${site}/stat/sitedpi`, { type: "by_cat" }),
@@ -169,10 +193,8 @@ export class UnifiClient {
     for (const fn of attempts) {
       try {
         const r: any = await fn();
-        // Skip empty arrays so we keep trying, but keep objects because some
-        // UniFi builds return { by_app: [...] } or { events: [...] } directly.
         const data = r?.data ?? r;
-        if (Array.isArray(data) && data.length > 0) return r;
+        if (Array.isArray(data) && data.some((x) => x && Object.keys(x).length > 0)) return r;
         if (!Array.isArray(data) && data && Object.keys(data).length > 0) return r;
       } catch (e) { lastErr = e; }
     }
@@ -180,4 +202,5 @@ export class UnifiClient {
     return { data: [] };
   }
 }
+
 

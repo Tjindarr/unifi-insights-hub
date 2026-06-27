@@ -368,29 +368,36 @@ export function mapWan(rawHealth: any, rawDevices: any) {
 
 export function mapEvents(rawEvents: any) {
   const evs: Raw[] = arrayFrom(rawEvents);
-  return evs.slice(0, 50).map((e, i) => {
-    const key = str(e.key ?? e.event ?? e.type ?? e.subsystem ?? e.category ?? "");
-    const msg = str(e.msg ?? e.message ?? e.description ?? e.text ?? e.name ?? "");
+  return evs.slice(0, 200).map((e, i) => {
+    // system-log entries put the human text in different places per category
+    const slMsg = str(
+      e.message ?? e.readable_message ?? e.eventStringFormatted ?? e.text
+        ?? (Array.isArray(e.messageEnums) ? e.messageEnums.join(" ") : ""),
+    );
+    const key = str(e.key ?? e.event ?? e.type ?? e.subsystem ?? e.category ?? e.__category ?? "");
+    const msg = slMsg || str(e.msg ?? e.description ?? e.name ?? "");
+    const cat = str(e.__category ?? "");
     let kind: "admin" | "wan" | "firmware" | "client" | "system" = "system";
-    const haystack = `${key} ${msg}`;
-    if (/Admin|Login|User/i.test(haystack)) kind = "admin";
-    else if (/Wan|Gateway|Internet/i.test(haystack)) kind = "wan";
-    else if (/Upgrade|Firmware/i.test(haystack)) kind = "firmware";
-    else if (/Sta|Guest|Client|Device/i.test(haystack)) kind = "client";
+    const haystack = `${cat} ${key} ${msg}`;
+    if (/admin|login|user|account/i.test(haystack)) kind = "admin";
+    else if (/wan|gateway|internet|isp/i.test(haystack)) kind = "wan";
+    else if (/upgrade|firmware|update/i.test(haystack)) kind = "firmware";
+    else if (/sta|guest|client|device|ap[-_ ]/i.test(haystack)) kind = "client";
     const sev: "info" | "warn" | "error" =
-      /Lost|Down|Disconnect|Failed|Error|Denied/i.test(haystack) ? "error"
-      : /Restart|Provisioned|Roam|Warn/i.test(haystack) ? "warn" : "info";
-    const time = num(e.time ?? e.datetime ?? e.timestamp ?? e.created_at ?? e.createdAt);
+      /lost|down|disconnect|failed|error|denied|threat|attack|block/i.test(haystack) ? "error"
+      : /restart|provisioned|roam|warn|degrad/i.test(haystack) ? "warn" : "info";
+    const time = num(e.timestamp ?? e.time ?? e.datetime ?? e.created_at ?? e.createdAt);
     return {
-      id: str(e._id ?? `ev${i}`),
+      id: str(e._id ?? e.id ?? `ev${i}`),
       time: new Date(time ? (time < 10_000_000_000 ? time * 1000 : time) : Date.now()).toISOString(),
       kind,
       severity: sev,
-      title: key || msg || "event",
-      detail: msg || key,
+      title: key || cat || msg || "event",
+      detail: msg || key || cat,
     };
   });
 }
+
 
 // ---- DPI ----
 
