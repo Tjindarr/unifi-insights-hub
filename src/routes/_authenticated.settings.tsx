@@ -33,6 +33,7 @@ type Settings = {
     feeds?: Record<string, boolean>;
     checkOnMiss?: boolean;
   };
+  syslog?: { tzOffsetMinutes: number; useArrivalTime: boolean };
   unifiStatus?: UnifiStatus;
 };
 
