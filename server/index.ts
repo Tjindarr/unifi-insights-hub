@@ -35,6 +35,7 @@ import { UnifiManager } from "./unifi/manager.ts";
 import { makeAuth } from "./auth.ts";
 import { registerApi } from "./api/routes.ts";
 import { ConfigStore } from "./config.ts";
+import { ThreatFeedManager } from "./threat/feeds.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const env = (k: string, fallback?: string) => process.env[k] ?? fallback;
