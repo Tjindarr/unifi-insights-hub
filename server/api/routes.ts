@@ -439,6 +439,13 @@ export async function registerApi(
     };
   });
 
+  // Parsing health — rolling per-minute counters from the syslog ingester.
+  app.get<{ Querystring: { windowMin?: string } }>("/api/parse-health", async (req) => {
+    const { parseHealthSnapshot } = await import("../syslog/parse-health.ts");
+    const windowMin = Math.max(5, Math.min(120, Number(req.query.windowMin) || 60));
+    return parseHealthSnapshot(windowMin * 60_000);
+  });
+
   // ---- logs (always real syslog DB; demo mode handled on client) ----
   app.get<{
     Querystring: { q?: string; host?: string; severity?: string; limit?: string };
