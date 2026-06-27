@@ -268,12 +268,34 @@ function bucketEvents<T extends string>(
 }
 
 // Derived: firewall events bucketed for the active time range (success vs failure).
+// Backed by a dedicated SQL aggregation endpoint so the chart spans the whole
+// window even when the table only fetched the most recent 500 rows.
 export function useFirewallByMinute(range: TimeRangeKey = "1h") {
-  const { data, isLive } = useFirewall();
+  const spec = bucketSpecForRange(range);
+  const since = Date.now() - spec.windowMs;
+  // Round `since` to the bucket boundary so the query key only changes when a
+  // new bucket boundary is crossed (otherwise we'd refetch on every render).
+  const sinceKey = Math.floor(since / spec.bucketMs) * spec.bucketMs;
+  type BucketRow = { t: number; success: number; failure: number };
+  const { data, isLive } = useLive<BucketRow[]>(
+    `firewall-buckets:${range}:${sinceKey}`,
+    () => getJson<BucketRow[]>(`/api/firewall/buckets?since=${sinceKey}&bucketMs=${spec.bucketMs}`),
+    [],
+    15_000,
+  );
   if (!isLive) return { data: mockFwByMin, isLive: false, label: "per minute" };
-  const mapped = data.map((e) => ({ time: e.time, key: e.action === "failure" ? "failure" as const : "success" as const }));
-  const rows = bucketEvents(mapped, range, ["success", "failure"] as const);
-  return { data: rows, isLive: true, label: bucketSpecForRange(range).label };
+
+  // Seed empty buckets so the chart spans the full window even when sparse.
+  const now = Date.now();
+  const first = Math.floor(sinceKey / spec.bucketMs) * spec.bucketMs;
+  const rowByT = new Map<number, BucketRow>();
+  for (const r of data) rowByT.set(r.t, r);
+  const out: { t: string; success: number; failure: number }[] = [];
+  for (let t = first; t <= now; t += spec.bucketMs) {
+    const r = rowByT.get(t);
+    out.push({ t: new Date(t).toISOString(), success: r?.success ?? 0, failure: r?.failure ?? 0 });
+  }
+  return { data: out, isLive: true, label: spec.label };
 }
 
 // Internal events bucketed for the active time range, by category.
