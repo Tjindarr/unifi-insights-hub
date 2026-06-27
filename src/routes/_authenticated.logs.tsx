@@ -93,6 +93,8 @@ function LogsPage() {
         description={`${rows.length} of ${syslog.length} · syntax: host:U7ProXG sev:warn app:stahtd term`}
         actions={
           <div className="flex items-center gap-2">
+            <DemoBadge isLive={isLive} />
+
             <button onClick={() => exportNdjson("logs", rows)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60">
               <Download className="h-3.5 w-3.5" />NDJSON
             </button>
