@@ -79,7 +79,8 @@ type ThreatFilter = "all" | "high" | "medium" | "low" | "clean" | "unknown";
 
 function FirewallPage() {
   const { data: allEvents, isLive } = useFirewall();
-  const { data: firewallByMinute } = useFirewallByMinute();
+  const { range } = useUI();
+  const { data: firewallByMinute, label: bucketLabel } = useFirewallByMinute(range);
   const [q, setQ] = useState("");
   const [srcQ, setSrcQ] = useState("");
   const [dstQ, setDstQ] = useState("");
