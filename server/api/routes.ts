@@ -112,6 +112,7 @@ export async function registerApi(
         retentionDays: number; retentionFirewallDays: number;
         maxDbMb: number; intervalMin: number; vacuumHours: number;
       }>;
+      noiseFilter?: Partial<{ enabled: boolean; action: "drop" | "downgrade"; patterns: string[] }>;
     };
   }>("/api/settings", async (req, reply) => {
     const body = req.body ?? {};
@@ -139,7 +140,15 @@ export async function registerApi(
       r.vacuumHours = clamp(r.vacuumHours, 1, 24 * 30);
       patch.retention = r;
     }
-    if (!patch.unifi && !patch.retention) {
+    if (body.noiseFilter) {
+      const nf = { ...current.noiseFilter, ...body.noiseFilter };
+      nf.action = nf.action === "downgrade" ? "downgrade" : "drop";
+      nf.patterns = Array.isArray(nf.patterns)
+        ? nf.patterns.map((s) => String(s)).filter(Boolean).slice(0, 100)
+        : [];
+      patch.noiseFilter = nf;
+    }
+    if (!patch.unifi && !patch.retention && !patch.noiseFilter) {
       return reply.code(400).send({ ok: false, error: "no changes" });
     }
     config.update(patch);
