@@ -59,12 +59,19 @@ export function extractFirewall(message: string, appname: string): FirewallField
     }
   }
 
-  // Kernel UFW / iptables style: [UFW BLOCK] IN=eth4 SRC=... DST=... PROTO=TCP SPT=... DPT=...
+  // Kernel UFW / iptables style: [UFW BLOCK] or UniFi rule tag [WAN_LOCAL-2000-D]
   const ufw = message.match(/\[(UFW|UBNT|FW)[\s_-]+(BLOCK|ALLOW|DENY|DROP|REJECT|ACCEPT)\]/i);
-  if (ufw) {
-    result.rule = ufw[1].toUpperCase();
-    const act = ufw[2].toUpperCase();
-    result.action = act === "ACCEPT" || act === "ALLOW" ? "allow" : "deny";
+  const unifiTag = message.match(/\[([A-Z0-9_]+)-(\d+)-([A-Z])\]/);
+  if (ufw || unifiTag) {
+    if (ufw) {
+      result.rule = ufw[1].toUpperCase();
+      const act = ufw[2].toUpperCase();
+      result.action = act === "ACCEPT" || act === "ALLOW" ? "allow" : "deny";
+    } else if (unifiTag) {
+      result.rule = `${unifiTag[1]}-${unifiTag[2]}`;
+      const code = unifiTag[3];
+      result.action = code === "A" ? "allow" : code === "R" ? "reject" : "deny";
+    }
     result.src_ip = message.match(/\bSRC=([^\s]+)/)?.[1] ?? null;
     result.dst_ip = message.match(/\bDST=([^\s]+)/)?.[1] ?? null;
     const spt = message.match(/\bSPT=(\d+)/)?.[1];
@@ -78,6 +85,9 @@ export function extractFirewall(message: string, appname: string): FirewallField
     });
     return result;
   }
+
+  return result;
+}
 
   return result;
 }
