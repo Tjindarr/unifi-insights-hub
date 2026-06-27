@@ -24,10 +24,10 @@ function LoginPage() {
     return <Navigate to={mustChangePassword() ? "/change-password" : "/"} />;
   }
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const res = signIn(username, password);
+    const res = await signIn(username, password);
     if (!res.ok) {
       setError(res.error);
       return;
