@@ -125,8 +125,10 @@ function FirewallPage() {
                   const geo = view === "src" ? geoLookup(g.key) : null;
                   return (
                     <tr key={g.key} className="border-t border-border">
-                      <td className="px-3 py-2 font-mono text-xs">
-                        {g.key} {geo && <span className="ml-2 text-muted-foreground">{geo.flag} {geo.city}</span>}
+                      <td className="px-3 py-2 text-xs">
+                        {view === "mac" && g.name && <span className="font-medium mr-2">{g.name}</span>}
+                        <span className="font-mono text-muted-foreground">{g.key}</span>
+                        {geo && <span className="ml-2 text-muted-foreground">{geo.flag} {geo.city}</span>}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">{g.count}</td>
                       <td className={cn("px-3 py-2 text-right tabular-nums", g.failures > 0 && "text-severity-error")}>{g.failures}</td>
