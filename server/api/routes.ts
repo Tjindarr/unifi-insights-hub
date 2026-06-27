@@ -64,7 +64,7 @@ export async function registerApi(app: FastifyInstance, { db, auth }: Deps) {
 
   app.addHook("preHandler", async (req, reply) => {
     if (!req.url.startsWith("/api/")) return;
-    if (req.url === "/api/login" || req.url === "/api/health") return;
+    if (req.url === "/api/login" || req.url === "/api/health" || req.url === "/api/change-password") return;
     const cookie = (req.cookies as Record<string, string | undefined>)[auth.cookieName];
     if (!auth.verifyCookie(cookie)) return reply.code(401).send({ ok: false, error: "unauthorized" });
   });
