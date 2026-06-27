@@ -13,6 +13,15 @@ const num = (v: any, d = 0): number => {
 };
 const str = (v: any, d = ""): string => (v == null ? d : String(v));
 
+function arrayFrom(raw: any, keys: string[] = ["data", "events", "items", "results"]): Raw[] {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== "object") return [];
+  for (const key of keys) {
+    if (Array.isArray(raw[key])) return raw[key];
+  }
+  return [];
+}
+
 // ---- Clients ----
 
 export type MappedClient = {
@@ -358,24 +367,27 @@ export function mapWan(rawHealth: any, rawDevices: any) {
 // ---- Events ----
 
 export function mapEvents(rawEvents: any) {
-  const evs: Raw[] = Array.isArray(rawEvents) ? rawEvents : [];
+  const evs: Raw[] = arrayFrom(rawEvents);
   return evs.slice(0, 50).map((e, i) => {
-    const key = str(e.key ?? "");
+    const key = str(e.key ?? e.event ?? e.type ?? e.subsystem ?? e.category ?? "");
+    const msg = str(e.msg ?? e.message ?? e.description ?? e.text ?? e.name ?? "");
     let kind: "admin" | "wan" | "firmware" | "client" | "system" = "system";
-    if (/Admin|Login|User/.test(key)) kind = "admin";
-    else if (/Wan|Gateway/.test(key)) kind = "wan";
-    else if (/Upgrade|Firmware/.test(key)) kind = "firmware";
-    else if (/User|Sta|Guest|Client/.test(key)) kind = "client";
+    const haystack = `${key} ${msg}`;
+    if (/Admin|Login|User/i.test(haystack)) kind = "admin";
+    else if (/Wan|Gateway|Internet/i.test(haystack)) kind = "wan";
+    else if (/Upgrade|Firmware/i.test(haystack)) kind = "firmware";
+    else if (/Sta|Guest|Client|Device/i.test(haystack)) kind = "client";
     const sev: "info" | "warn" | "error" =
-      /Lost|Down|Disconnect|Failed|Error/.test(key) ? "error"
-      : /Restart|Provisioned|Roam/.test(key) ? "warn" : "info";
+      /Lost|Down|Disconnect|Failed|Error|Denied/i.test(haystack) ? "error"
+      : /Restart|Provisioned|Roam|Warn/i.test(haystack) ? "warn" : "info";
+    const time = num(e.time ?? e.datetime ?? e.timestamp ?? e.created_at ?? e.createdAt);
     return {
       id: str(e._id ?? `ev${i}`),
-      time: new Date(num(e.time) || Date.now()).toISOString(),
+      time: new Date(time ? (time < 10_000_000_000 ? time * 1000 : time) : Date.now()).toISOString(),
       kind,
       severity: sev,
-      title: key || "event",
-      detail: str(e.msg ?? ""),
+      title: key || msg || "event",
+      detail: msg || key,
     };
   });
 }
@@ -388,23 +400,32 @@ const DPI_CAT: Record<number, string> = {
 };
 
 export function mapDpi(rawDpi: any) {
-  const arr: Raw[] = Array.isArray(rawDpi) ? rawDpi : [];
-  // Items can be { by_app: [...] } (sitedpi) or per-station { mac, by_app: [...] } (stadpi).
+  const arr: Raw[] = arrayFrom(rawDpi, ["data", "items", "results", "applications"]);
+  const root = rawDpi && typeof rawDpi === "object" && !Array.isArray(rawDpi) ? rawDpi : null;
+  if (root && arr.length === 0 && (Array.isArray(root.by_app) || Array.isArray(root.by_cat))) arr.push(root);
+  // Items can be { by_app: [...] } (sitedpi), direct app rows, or per-station
+  // { mac, by_app: [...] } (stadpi). Aggregate across all by_app/app entries.
   // Aggregate across all by_app entries by app id.
   const agg = new Map<string, { name: string; category: string; rx: number; tx: number }>();
   for (const item of arr) {
-    const list: Raw[] = Array.isArray(item?.by_app) ? item.by_app : [];
+    const list: Raw[] = Array.isArray(item?.by_app)
+      ? item.by_app
+      : Array.isArray(item?.apps)
+        ? item.apps
+        : (item?.app != null || item?.app_id != null || item?.app_name != null || item?.rx_bytes != null || item?.tx_bytes != null)
+          ? [item]
+          : [];
     for (const a of list) {
       const id = String(a.app ?? a.app_id ?? a.app_name ?? "unknown");
       const key = `${a.cat ?? "?"}/${id}`;
       const prev = agg.get(key) ?? {
-        name: str(a.app_name ?? `App ${id}`),
-        category: DPI_CAT[num(a.cat)] ?? `Cat ${a.cat ?? "?"}`,
+        name: str(a.app_name ?? a.name ?? a.application ?? `App ${id}`),
+        category: str(a.cat_name ?? a.category ?? DPI_CAT[num(a.cat)] ?? `Cat ${a.cat ?? "?"}`),
         rx: 0,
         tx: 0,
       };
-      prev.rx += num(a.rx_bytes);
-      prev.tx += num(a.tx_bytes);
+      prev.rx += num(a.rx_bytes ?? a.rxBytes ?? a.rx_bytes_r ?? a.bytes_rx ?? a.rx);
+      prev.tx += num(a.tx_bytes ?? a.txBytes ?? a.tx_bytes_r ?? a.bytes_tx ?? a.tx);
       agg.set(key, prev);
     }
   }
