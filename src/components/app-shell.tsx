@@ -1,8 +1,9 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
-  Activity, AlertCircle, BarChart3, Cable, Command as CommandIcon, Flame,
+  Activity, AlertCircle, BarChart3, Cable, Command as CommandIcon, FileText, Flame,
   LayoutDashboard, LogOut, Network, Plug, ScrollText, Search, Settings,
   Shield, Wifi,
+
 } from "lucide-react";
 import type { ReactNode } from "react";
 
