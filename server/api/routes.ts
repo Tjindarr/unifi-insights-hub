@@ -171,29 +171,93 @@ export async function registerApi(
     return { ok: true, last: retention.state.last, db: dbStats(db) };
   });
 
-  // ---- overview ----
-  app.get("/api/overview", async () => {
-    const clients = (getSnapshot<Array<Record<string, unknown>>>(db, "unifi_clients_snapshot") ?? []) as Array<
-      Record<string, unknown>
-    >;
-    const wireless = clients.filter((c) => !c.is_wired).length;
-    const wired = clients.length - wireless;
-    const totalRx = clients.reduce((a, c) => a + Number(c.rx_rate ?? c["rx-rate"] ?? 0), 0);
-    const totalTx = clients.reduce((a, c) => a + Number(c.tx_rate ?? c["tx-rate"] ?? 0), 0);
-    const satAvg = clients.length
-      ? Math.round(clients.reduce((a, c) => a + Number(c.satisfaction ?? 100), 0) / clients.length)
-      : 100;
+  // ---- UniFi-derived data (all live-mapped via server/unifi/mappers.ts) ----
+  // Pages also have client-side mock fallback when unifi.lastOk = false.
+  const snap = <T>(table: string) => getSnapshot<T>(db, table);
+
+  const requireLive = () => unifi.getStatus().lastOk;
+
+  app.get("/api/overview", async (_req, reply) => {
+    if (!requireLive()) return reply.code(204).send();
+    const clients = snap<unknown[]>("unifi_clients_snapshot") ?? [];
+    const devices = snap<unknown[]>("unifi_devices_snapshot") ?? [];
+    const health = snap<unknown[]>("unifi_health_snapshot") ?? [];
+    const { mapOverview } = await import("../unifi/mappers.ts");
+    return mapOverview(clients, devices, health);
+  });
+
+  app.get("/api/clients", async (_req, reply) => {
+    if (!requireLive()) return reply.code(204).send();
+    const { mapClients } = await import("../unifi/mappers.ts");
+    return mapClients(snap<unknown[]>("unifi_clients_snapshot") ?? []);
+  });
+
+  app.get("/api/devices", async (_req, reply) => {
+    if (!requireLive()) return reply.code(204).send();
+    return snap("unifi_devices_snapshot") ?? [];
+  });
+
+  app.get("/api/ports", async (_req, reply) => {
+    if (!requireLive()) return reply.code(204).send();
+    const { mapPorts } = await import("../unifi/mappers.ts");
+    return mapPorts(snap("unifi_devices_snapshot"));
+  });
+
+  app.get("/api/firmware", async (_req, reply) => {
+    if (!requireLive()) return reply.code(204).send();
+    const { mapFirmware } = await import("../unifi/mappers.ts");
+    return mapFirmware(snap("unifi_devices_snapshot"));
+  });
+
+  app.get("/api/topology", async (_req, reply) => {
+    if (!requireLive()) return reply.code(204).send();
+    const { mapTopology } = await import("../unifi/mappers.ts");
+    return mapTopology(snap("unifi_devices_snapshot"));
+  });
+
+  app.get("/api/ssids", async (_req, reply) => {
+    if (!requireLive()) return reply.code(204).send();
+    const { mapSsids } = await import("../unifi/mappers.ts");
+    return mapSsids(snap("unifi_devices_snapshot"));
+  });
+
+  app.get("/api/wan", async (_req, reply) => {
+    if (!requireLive()) return reply.code(204).send();
+    const { mapWan } = await import("../unifi/mappers.ts");
+    return mapWan(snap("unifi_health_snapshot"), snap("unifi_devices_snapshot"));
+  });
+
+  app.get("/api/events", async (_req, reply) => {
+    if (!requireLive()) return reply.code(204).send();
+    const { mapEvents } = await import("../unifi/mappers.ts");
+    return mapEvents(snap("unifi_events_snapshot"));
+  });
+
+  app.get("/api/dpi", async (_req, reply) => {
+    if (!requireLive()) return reply.code(204).send();
+    const { mapDpi } = await import("../unifi/mappers.ts");
+    return mapDpi(snap("unifi_dpi_snapshot"));
+  });
+
+  // Collector health for the header banner.
+  app.get("/api/collector", async () => {
+    const stats = dbStats(db);
+    const u = unifi.getStatus();
     return {
-      totalClients: clients.length, wired, wireless,
-      avgSatisfaction: satAvg, currentRx: totalRx, currentTx: totalTx,
+      msgsPerSec: 0, // collector throughput meter could be added later
+      syslogQueueDepth: 0,
+      unifiPollMs: 0,
+      unifiPollAgeSec: u.lastPollAt ? Math.round((Date.now() - u.lastPollAt) / 1000) : 9999,
+      unifiOk: u.lastOk,
+      unifiConfigured: u.configured,
+      dbSizeBytes: stats.sizeBytes,
+      retentionDays: config.get().retention.retentionDays,
+      oldestEntryDays: stats.oldestTime ? Math.round((Date.now() - stats.oldestTime) / 86400_000) : 0,
+      fts5Indexed: stats.syslogCount,
     };
   });
 
-  app.get("/api/clients", async () => getSnapshot(db, "unifi_clients_snapshot") ?? []);
-  app.get("/api/devices", async () => getSnapshot(db, "unifi_devices_snapshot") ?? []);
-  app.get("/api/health-snapshot", async () => getSnapshot(db, "unifi_health_snapshot") ?? []);
-
-  // ---- logs ----
+  // ---- logs (always real syslog DB; demo mode handled on client) ----
   app.get<{
     Querystring: { q?: string; host?: string; severity?: string; limit?: string };
   }>("/api/logs", async (req) => {
@@ -219,3 +283,4 @@ export async function registerApi(
     });
   });
 }
+
