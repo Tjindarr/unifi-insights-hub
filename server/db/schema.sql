@@ -131,4 +131,18 @@ CREATE TABLE IF NOT EXISTS wifi_auth_events (
 CREATE INDEX IF NOT EXISTS idx_wae_mac  ON wifi_auth_events(mac, time DESC);
 CREATE INDEX IF NOT EXISTS idx_wae_time ON wifi_auth_events(time DESC);
 
+-- ---- IP enrichment cache (GeoIP + AbuseIPDB) ----------------------------
+CREATE TABLE IF NOT EXISTS ip_enrichment (
+  ip              TEXT PRIMARY KEY,
+  country         TEXT,
+  cc              TEXT,
+  city            TEXT,
+  isp             TEXT,
+  geo_fetched_at  INTEGER,
+  abuse_score     INTEGER,
+  abuse_reports   INTEGER,
+  abuse_fetched_at INTEGER
+);
+
+
 
