@@ -364,6 +364,31 @@ export function mapWan(rawHealth: any, rawDevices: any) {
   };
 }
 
+// ---- Speedtest history ----
+// UniFi reports xput_download / xput_upload in Mbps and latency in ms.
+// We convert Mbps → bytes/sec so the UI's formatBits() helper renders
+// the row as a real throughput (e.g. "812.4 Mbps") instead of a byte total.
+export function mapSpeedtests(raw: any): Array<{ t: string; down: number; up: number; ping: number }> {
+  const arr: Raw[] = Array.isArray(raw) ? raw : [];
+  const mbpsToBps = (mbps: number) => (mbps * 1_000_000) / 8;
+  return arr
+    .map((r) => {
+      const tMs = num(r.time);
+      const t = tMs > 1e12 ? tMs : tMs * 1000; // some endpoints return seconds
+      const downMbps = num(r.xput_download ?? r.xput_down ?? r.download);
+      const upMbps = num(r.xput_upload ?? r.xput_up ?? r.upload);
+      const ping = num(r.latency ?? r.ping ?? 0);
+      return {
+        t: new Date(t || Date.now()).toISOString(),
+        down: mbpsToBps(downMbps),
+        up: mbpsToBps(upMbps),
+        ping,
+      };
+    })
+    .filter((x) => x.down > 0 || x.up > 0)
+    .sort((a, b) => b.t.localeCompare(a.t))
+    .slice(0, 30);
+
 // ---- Events ----
 
 // Collect all primitive (string/number) fields from a system-log event into a

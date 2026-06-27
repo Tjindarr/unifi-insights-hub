@@ -272,6 +272,12 @@ export async function registerApi(
     return mapWan(snap("unifi_health_snapshot"), snap("unifi_devices_snapshot"));
   });
 
+  app.get("/api/speedtest", async (_req, reply) => {
+    if (!requireLive()) return reply.code(204).send();
+    const { mapSpeedtests } = await import("../unifi/mappers.ts");
+    return mapSpeedtests(snap("unifi_speedtest_snapshot"));
+  });
+
   app.get("/api/events", async (_req, reply) => {
     if (!requireLive()) return reply.code(204).send();
     const { mapEvents } = await import("../unifi/mappers.ts");
@@ -294,6 +300,7 @@ export async function registerApi(
       "unifi_events_snapshot",
       "unifi_dpi_snapshot",
       "unifi_dpi_catalog_snapshot",
+      "unifi_speedtest_snapshot",
     ];
     const out: Record<string, unknown> = {};
     for (const k of keys) {

@@ -155,8 +155,9 @@ export const wan = {
   })),
   speedTests: Array.from({ length: 7 }, (_, i) => ({
     t: new Date(Date.now() - i * 86400_000).toISOString(),
-    down: 850_000_000 + r() * 100_000_000,
-    up: 420_000_000 + r() * 80_000_000,
+    // Stored as bytes/sec so formatBits() renders Mbps/Gbps correctly.
+    down: ((850 + r() * 100) * 1_000_000) / 8,
+    up: ((420 + r() * 80) * 1_000_000) / 8,
     ping: 9 + r() * 4,
   })),
 };

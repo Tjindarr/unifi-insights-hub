@@ -281,6 +281,11 @@ export function useWan(): Live<WanResp> {
   return useLive("wan", () => getJson<WanResp>("/api/wan"), mockWanShape());
 }
 
+export type SpeedTestRow = { t: string; down: number; up: number; ping: number };
+export function useSpeedtests(): Live<SpeedTestRow[]> {
+  return useLive("speedtest", () => getJson<SpeedTestRow[]>("/api/speedtest"), mockWan.speedTests);
+}
+
 // Throughput history isn't in the UniFi snapshot — keep mock for now.
 export function useWanThroughput() {
   return mockWanThroughput;
