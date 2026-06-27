@@ -217,45 +217,75 @@ export type MappedPort = {
   clientCount: number;
 };
 
-export function mapPorts(rawDevices: any): MappedPort[] {
+export function mapPorts(rawDevices: any, rawClients?: any): MappedPort[] {
   const out: MappedPort[] = [];
   const devs: Raw[] = Array.isArray(rawDevices) ? rawDevices : [];
+  const clients: Raw[] = Array.isArray(rawClients) ? rawClients : Array.isArray(rawClients?.data) ? rawClients.data : [];
+  // Build (deviceMac, portIdx) -> client count from clients snapshot
+  const clientCounts = new Map<string, number>();
+  for (const c of clients) {
+    const dev = String(c.sw_mac ?? c.uplink_mac ?? c.ap_mac ?? "").toLowerCase();
+    const portIdx = Number(c.sw_port ?? c.switch_port ?? 0);
+    if (!dev || !portIdx) continue;
+    const key = `${dev}:${portIdx}`;
+    clientCounts.set(key, (clientCounts.get(key) ?? 0) + 1);
+  }
   for (const d of devs) {
     const devName = str(d.name ?? d.model ?? d.mac);
+    const devMac = String(d.mac ?? "").toLowerCase();
     const ports: Raw[] = d.port_table ?? [];
+    // Device-level LLDP table keyed by port_idx
+    const lldpTable: Raw[] = Array.isArray(d.lldp_table) ? d.lldp_table : [];
+    // Device-level mac_table with port_idx
+    const devMacTable: Raw[] = Array.isArray(d.mac_table) ? d.mac_table : [];
     for (const p of ports) {
+      const idx = num(p.port_idx ?? p.port_number);
       const up = !!(p.up ?? p.enable);
       const link: MappedPort["link"] = p.enable === false ? "disabled" : up ? "up" : "down";
 
-      // PoE: UniFi reports `poe_power` as string watts; some firmwares use
-      // `poe_wattage` or nest under stats. `poe_caps` is a bitmask, not max W.
-      const poeW = Number(p.poe_power ?? p.poe_wattage ?? p.stats?.poe_power ?? 0) || 0;
+      // PoE: poe_power is string watts; if missing, derive from voltage*current.
+      let poeW = Number(p.poe_power ?? p.poe_wattage ?? p.stats?.poe_power ?? 0) || 0;
+      if (!poeW) {
+        const v = Number(p.poe_voltage ?? 0);
+        const i = Number(p.poe_current ?? 0); // mA
+        if (v && i) poeW = (v * i) / 1000;
+      }
       const poeMax =
         Number(p.poe_max ?? p.poe_max_power ?? p.poe_caps_w ?? 0) ||
-        (poeW > 60 ? 90 : poeW > 30 ? 60 : 30);
+        (poeW > 60 ? 90 : poeW > 30 ? 60 : poeW > 0 ? 30 : 0);
 
-      // Errors: try port-level then nested stats.
-      const rxErr = Number(p.rx_errors ?? p.stats?.rx_errors ?? p.rx_dropped ?? 0) || 0;
-      const txErr = Number(p.tx_errors ?? p.stats?.tx_errors ?? p.tx_dropped ?? 0) || 0;
+      // Errors: try multiple shapes.
+      const rxErr =
+        Number(p.rx_errors ?? p.stats?.rx_errors ?? p.rx_err ?? p.stats?.rx_err ?? p.rx_dropped ?? 0) || 0;
+      const txErr =
+        Number(p.tx_errors ?? p.stats?.tx_errors ?? p.tx_err ?? p.stats?.tx_err ?? p.tx_dropped ?? 0) || 0;
 
-      // LLDP neighbour — can be array or object depending on firmware.
-      const lldp: any = Array.isArray(p.lldp_info) ? p.lldp_info[0] : p.lldp_info;
+      // LLDP neighbour — port-level first, then device-level lldp_table by port_idx.
+      const lldpPort: any = Array.isArray(p.lldp_info) ? p.lldp_info[0] : p.lldp_info;
+      const lldpDev: any = lldpTable.find((x) => Number(x.local_port_idx ?? x.port_idx) === idx);
       const neighbor =
-        lldp?.system_name ||
-        lldp?.chassis_id ||
+        lldpPort?.system_name ||
+        lldpPort?.chassis_id ||
+        lldpDev?.chassis_name ||
+        lldpDev?.system_name ||
+        lldpDev?.chassis_id ||
         p.lldp_system_name ||
         p.lldp_chassis_id ||
         undefined;
 
-      // Client count: prefer mac_table length, fall back to num_sta/num_port.
-      const macTable: any[] = Array.isArray(p.mac_table) ? p.mac_table : [];
+      // Client count: port mac_table, then device mac_table by port_idx, then clients snapshot.
+      const portMacTable: any[] = Array.isArray(p.mac_table) ? p.mac_table : [];
+      const fromDevMac = devMacTable.filter((m) => Number(m.port_idx ?? m.sw_port) === idx).length;
+      const fromClients = clientCounts.get(`${devMac}:${idx}`) ?? 0;
       const clientCount =
-        macTable.length ||
-        Number(p.num_sta ?? p.num_port ?? p.attr_num_sta ?? 0) ||
+        portMacTable.length ||
+        fromDevMac ||
+        fromClients ||
+        Number(p.num_sta ?? 0) ||
         0;
 
       out.push({
-        id: num(p.port_idx ?? p.port_number),
+        id: idx,
         device: devName,
         name: str(p.name ?? `Port ${p.port_idx ?? "?"}`),
         link,
