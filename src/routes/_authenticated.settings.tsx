@@ -487,6 +487,43 @@ function SettingsPage() {
           </p>
         </section>
 
+        {/* ---- Firewall logging tips ---- */}
+        <section className="rounded-lg border border-border bg-card p-5">
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4" /> Firewall logging on the UDR
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            The UDR's syslog stream does <strong>not</strong> include internet traffic by default.
+            Normal LAN→WAN sessions are forwarded by the built-in "Allow established / related"
+            rule, which has logging disabled. To populate the Firewall page (and the{" "}
+            <em>Internet only</em> filter) you must enable logging on at least one rule.
+          </p>
+          <ol className="mt-3 space-y-1.5 text-xs text-muted-foreground list-decimal list-inside leading-relaxed">
+            <li>
+              Open the UniFi Network app →{" "}
+              <strong>Settings → Security → Traffic &amp; Firewall Rules → Internet</strong>.
+            </li>
+            <li>
+              Edit a <strong>Block</strong> rule (e.g. the default "Block External → Internal")
+              and toggle <strong>Logging</strong> on. Drop rules are low volume / high value —
+              the safest place to start.
+            </li>
+            <li>
+              Optionally clone an <strong>Allow</strong> rule scoped to interesting destination
+              ports (22, 23, 445, 3389) with logging on, to catch new outbound sessions without
+              flooding syslog.
+            </li>
+            <li>
+              Save. The first matching packet appears in syslog within a few seconds; the
+              Firewall page typically starts filling within ~10 s of the next matching
+              connection.
+            </li>
+          </ol>
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            Avoid enabling logging on broad <strong>Allow</strong> rules — a busy network can
+            push hundreds of lines/sec over UDP/514 and fill the database fast.
+          </p>
+        </section>
 
         <section className="rounded-lg border border-border bg-card p-5">
           <h2 className="text-sm font-medium">Unraid install</h2>
