@@ -15,14 +15,21 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/lib/auth";
 
-const nav = [
+type NavItem = {
+  to: "/" | "/clients" | "/network" | "/firewall" | "/logs" | "/settings";
+  label: string;
+  icon: typeof LayoutDashboard;
+  exact?: boolean;
+};
+
+const nav: NavItem[] = [
   { to: "/", label: "Overview", icon: LayoutDashboard, exact: true },
   { to: "/clients", label: "Clients", icon: Wifi },
   { to: "/network", label: "Network", icon: Activity },
   { to: "/firewall", label: "Firewall", icon: Flame },
   { to: "/logs", label: "Logs", icon: ScrollText },
   { to: "/settings", label: "Settings", icon: Settings },
-] as const;
+];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
