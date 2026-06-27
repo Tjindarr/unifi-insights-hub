@@ -89,5 +89,3 @@ export function extractFirewall(message: string, appname: string): FirewallField
   return result;
 }
 
-  return result;
-}
