@@ -35,7 +35,7 @@ function shapeOf(value: any): unknown {
   if (Array.isArray(root)) return describeArray(root);
   if (!root || typeof root !== "object") return { kind: typeof root, value: root };
   const out: Record<string, unknown> = { kind: "object", keys: Object.keys(root).slice(0, 40) };
-  for (const key of ["data", "events", "items", "results", "by_app", "by_cat"]) {
+  for (const key of ["data", "events", "items", "results", "by_app", "by_cat", "client_usage_by_app", "usage_by_app"]) {
     const child = root[key];
     if (Array.isArray(child)) out[key] = describeArray(child);
   }
@@ -202,6 +202,7 @@ export class UnifiClient {
         const data = r?.data ?? r;
         const clientTraffic = data?.client_usage_by_app ?? r?.client_usage_by_app;
         if (Array.isArray(clientTraffic) && clientTraffic.some((x) => Array.isArray(x?.usage_by_app) && x.usage_by_app.length > 0)) return r;
+        if (Array.isArray(clientTraffic)) continue;
         if (Array.isArray(data) && data.some((x) => x && Object.keys(x).length > 0)) return r;
         if (!Array.isArray(data) && data && Object.keys(data).length > 0) return r;
       } catch (e) { lastErr = e; }

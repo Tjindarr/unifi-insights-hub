@@ -456,6 +456,10 @@ const DPI_CAT: Record<number, string> = {
 export function mapDpi(rawDpi: any) {
   const arr: Raw[] = arrayFrom(rawDpi, ["data", "items", "results", "applications", "client_usage_by_app"]);
   const root = rawDpi && typeof rawDpi === "object" && !Array.isArray(rawDpi) ? rawDpi : null;
+  if (root && arr.length === 0 && root.data && typeof root.data === "object") {
+    if (Array.isArray(root.data.client_usage_by_app)) arr.push(...root.data.client_usage_by_app);
+    else if (Array.isArray(root.data.by_app) || Array.isArray(root.data.by_cat) || Array.isArray(root.data.usage_by_app)) arr.push(root.data);
+  }
   if (root && arr.length === 0 && (Array.isArray(root.by_app) || Array.isArray(root.by_cat) || Array.isArray(root.usage_by_app))) arr.push(root);
   // Items can be { by_app: [...] } (legacy sitedpi), direct app rows,
   // { mac, by_app: [...] } (legacy stadpi), or Network 9.1+ v2 traffic rows:
