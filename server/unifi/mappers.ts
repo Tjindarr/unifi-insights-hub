@@ -395,6 +395,9 @@ export function mapSpeedtests(raw: any): Array<{ t: string; down: number; up: nu
     .filter((x) => x.down > 0 || x.up > 0)
     .sort((a, b) => b.t.localeCompare(a.t))
     .slice(0, 30);
+}
+
+
 
 // ---- Events ----
 
