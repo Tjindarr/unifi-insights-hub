@@ -16,7 +16,7 @@ const pages = [
   { label: "Network",      to: "/network",   icon: Activity },
   { label: "WAN",          to: "/wan",       icon: Cable },
   { label: "Topology",     to: "/topology",  icon: Network },
-  { label: "DPI / Apps",   to: "/dpi",       icon: BarChart3 },
+  
   { label: "Ports",        to: "/ports",     icon: Plug },
   { label: "Firewall",     to: "/firewall",  icon: Flame },
   { label: "Events",       to: "/events",    icon: AlertCircle },
