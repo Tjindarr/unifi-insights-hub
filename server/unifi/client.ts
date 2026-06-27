@@ -37,14 +37,17 @@ export class UnifiClient {
     this.cookies = { auth: cookieStr, csrf };
   }
 
-  private async call<T = unknown>(path: string): Promise<T> {
+  private async call<T = unknown>(path: string, body?: unknown): Promise<T> {
     if (!this.cookies) await this.login();
     const doFetch = () =>
       fetch(`${this.base()}${path}`, {
+        method: body !== undefined ? "POST" : "GET",
         headers: {
           cookie: this.cookies!.auth,
           ...(this.cookies!.csrf ? { "x-csrf-token": this.cookies!.csrf } : {}),
+          ...(body !== undefined ? { "content-type": "application/json" } : {}),
         },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
         dispatcher: agent,
       });
     let res = await doFetch();
@@ -67,12 +70,16 @@ export class UnifiClient {
     return this.call(`/proxy/network/api/s/${this.cfg.site}/stat/health`);
   }
   events() {
-    // Last 100 site events (admin actions, WAN flaps, firmware, etc.)
     return this.call(`/proxy/network/api/s/${this.cfg.site}/stat/event?_limit=100`);
   }
-  dpi() {
-    // Site-wide DPI aggregated by app + category
-    return this.call(`/proxy/network/api/s/${this.cfg.site}/stat/sitedpi?type=by_app`);
+  async dpi() {
+    // Site-wide DPI aggregated by app + category. UniFi expects POST with body.
+    try {
+      return await this.call(`/proxy/network/api/s/${this.cfg.site}/stat/sitedpi`, { type: "by_app" });
+    } catch {
+      // Per-station DPI fallback for firmwares that don't expose sitedpi.
+      return await this.call(`/proxy/network/api/s/${this.cfg.site}/stat/stadpi`, { type: "by_app" });
+    }
   }
 }
 
