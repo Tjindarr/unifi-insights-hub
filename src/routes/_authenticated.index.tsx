@@ -82,13 +82,13 @@ function OverviewPage() {
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-medium">Top talkers</h2>
-                <p className="text-xs text-muted-foreground">By current RX + TX · click for detail</p>
+                <p className="text-xs text-muted-foreground">By total downloaded (RX) · click for detail</p>
               </div>
             </div>
             <ul className="divide-y divide-border">
               {o.topTalkers.map((c) => {
-                const total = c.rxRate + c.txRate;
-                const maxTotal = o.topTalkers[0].rxRate + o.topTalkers[0].txRate || 1;
+                const total = c.rxBytes;
+                const maxTotal = o.topTalkers[0].rxBytes || 1;
                 const pct = (total / maxTotal) * 100;
                 return (
                   <li key={c.id}>

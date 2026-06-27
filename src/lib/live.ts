@@ -400,8 +400,32 @@ export function useSpeedtests(): Live<SpeedTestRow[]> {
   return useLive("speedtest", () => getJson<SpeedTestRow[]>("/api/speedtest"), mockWan.speedTests);
 }
 
-// Throughput history isn't in the UniFi snapshot — keep mock for now.
+// Throughput history isn't in the UniFi snapshot — accumulate a rolling
+// ring buffer client-side from successive /api/overview polls. Falls back to
+// the deterministic mock series until the backend reports live data.
+const wanThroughputBuffer: { t: string; rx: number; tx: number }[] = [];
+const WAN_THROUGHPUT_MAX_POINTS = 120; // ~last 2h at 1min polling
+let wanThroughputLastT = 0;
+
 export function useWanThroughput() {
+  const { data, isLive } = useOverview();
+  if (isLive && data) {
+    const now = Date.now();
+    // Throttle so we don't push duplicate points within ~10s of each other.
+    if (now - wanThroughputLastT > 10_000) {
+      wanThroughputLastT = now;
+      wanThroughputBuffer.push({
+        t: new Date(now).toISOString(),
+        rx: data.currentRx ?? 0,
+        tx: data.currentTx ?? 0,
+      });
+      if (wanThroughputBuffer.length > WAN_THROUGHPUT_MAX_POINTS) {
+        wanThroughputBuffer.splice(0, wanThroughputBuffer.length - WAN_THROUGHPUT_MAX_POINTS);
+      }
+    }
+    // Need at least 2 points for the area chart to render meaningfully.
+    if (wanThroughputBuffer.length >= 2) return wanThroughputBuffer.slice();
+  }
   return mockWanThroughput;
 }
 
