@@ -70,7 +70,7 @@ function LogsPage() {
   const rows = useMemo(() =>
     syslog.filter((s: SyslogEntry) => sev.has(s.severity) && (host === "all" || s.host === host) && matches(s, parsed))
   , [parsed, sev, host, syslog]);
-  const syslogByMinute = useSyslogByMinute(syslog);
+  const syslogByMinute = useSyslogByMinute(rows, isLive);
 
 
 
