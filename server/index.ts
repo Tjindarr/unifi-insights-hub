@@ -25,6 +25,7 @@ import {
 } from "./db/queries.ts";
 import { parseSyslog } from "./syslog/parser.ts";
 import { extractFirewall } from "./syslog/unifi-firewall.ts";
+import { recordParse } from "./syslog/parse-health.ts";
 import {
   applyNoiseFilter,
   extract as extractEnrichments,
@@ -66,8 +67,10 @@ const wsClients = new Set<{ send: (msg: string) => void }>();
 const udp = createSocket("udp4");
 udp.on("message", (buf, rinfo) => {
   const line = buf.toString("utf8");
+  const arrival = Date.now();
   try {
-    const parsed = parseSyslog(line, rinfo.address, config.get().syslog);
+    const cfg = config.get().syslog;
+    const parsed = parseSyslog(line, rinfo.address, cfg);
 
     // Noise filter — drop or downgrade chatty patterns before they hit the DB.
     const decision = applyNoiseFilter(parsed, config.get().noiseFilter);
@@ -80,6 +83,18 @@ udp.on("message", (buf, rinfo) => {
       counters.downgraded++;
     }
 
+    // Detect timestamp skew between router and arrival (only meaningful when
+    // we kept the router's timestamp).
+    if (!cfg.useArrivalTime && Math.abs(parsed.time - arrival) > 120_000) {
+      recordParse("tzSkewed", arrival);
+    }
+
+    // Detect CEF parse failures: line looks like CEF but the parser failed to
+    // route it through the CEF path (appname should be set to "unifi-cef").
+    if (/CEF:\d+\|/.test(line) && parsed.appname !== "unifi-cef") {
+      recordParse("cefFailures", arrival);
+    }
+
     const info = insertSyslog.run({
       time: parsed.time,
       host: parsed.host,
@@ -90,6 +105,7 @@ udp.on("message", (buf, rinfo) => {
       raw: parsed.raw,
       is_firewall: parsed.isFirewall ? 1 : 0,
     });
+    recordParse("accepted", arrival);
 
     if (parsed.isFirewall) {
       const fw = extractFirewall(parsed.message, parsed.appname);
@@ -127,6 +143,7 @@ udp.on("message", (buf, rinfo) => {
       }
     }
   } catch (err) {
+    recordParse("rejected", arrival);
     console.error("syslog parse error", err);
   }
 });
