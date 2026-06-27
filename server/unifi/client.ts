@@ -35,7 +35,7 @@ function shapeOf(value: any): unknown {
   if (Array.isArray(root)) return describeArray(root);
   if (!root || typeof root !== "object") return { kind: typeof root, value: root };
   const out: Record<string, unknown> = { kind: "object", keys: Object.keys(root).slice(0, 40) };
-  for (const key of ["data", "events", "items", "results", "by_app", "by_cat"]) {
+  for (const key of ["data", "events", "items", "results", "by_app", "by_cat", "client_usage_by_app", "usage_by_app"]) {
     const child = root[key];
     if (Array.isArray(child)) out[key] = describeArray(child);
   }
@@ -115,6 +115,8 @@ export class UnifiClient {
 
   async diagnostics(): Promise<{ events: ProbeResult[]; dpi: ProbeResult[] }> {
     const site = this.cfg.site;
+    const end = Date.now();
+    const start = end - 24 * 60 * 60 * 1000;
     const slCats = ["next-ai-alerts", "triggers", "device-events", "client-events", "admin-activity", "threats", "updates", "vpn"];
     const events: ProbeResult[] = [];
     for (const cat of slCats) {
@@ -133,6 +135,7 @@ export class UnifiClient {
       await this.probe("events-rest", `/proxy/network/api/s/${site}/rest/event?_limit=100`),
     );
     const dpi = await Promise.all([
+      this.probe("traffic-v2-24h", `/proxy/network/v2/api/site/${site}/traffic?start=${start}&end=${end}&includeUnidentified=true`),
       this.probe("sitedpi-by-app", `/proxy/network/api/s/${site}/stat/sitedpi`, { type: "by_app" }),
       this.probe("sitedpi-by-cat", `/proxy/network/api/s/${site}/stat/sitedpi`, { type: "by_cat" }),
       this.probe("stadpi-by-app", `/proxy/network/api/s/${site}/stat/stadpi`, { type: "by_app" }),
@@ -183,7 +186,10 @@ export class UnifiClient {
   }
   async dpi() {
     const site = this.cfg.site;
+    const end = Date.now();
+    const start = end - 24 * 60 * 60 * 1000;
     const attempts: Array<() => Promise<unknown>> = [
+      () => this.call(`/proxy/network/v2/api/site/${site}/traffic?start=${start}&end=${end}&includeUnidentified=true`),
       () => this.call(`/proxy/network/api/s/${site}/stat/sitedpi`, { type: "by_app" }),
       () => this.call(`/proxy/network/api/s/${site}/stat/sitedpi`, { type: "by_cat" }),
       () => this.call(`/proxy/network/api/s/${site}/stat/stadpi`, { type: "by_app" }),
@@ -194,6 +200,9 @@ export class UnifiClient {
       try {
         const r: any = await fn();
         const data = r?.data ?? r;
+        const clientTraffic = data?.client_usage_by_app ?? r?.client_usage_by_app;
+        if (Array.isArray(clientTraffic) && clientTraffic.some((x) => Array.isArray(x?.usage_by_app) && x.usage_by_app.length > 0)) return r;
+        if (Array.isArray(clientTraffic)) continue;
         if (Array.isArray(data) && data.some((x) => x && Object.keys(x).length > 0)) return r;
         if (!Array.isArray(data) && data && Object.keys(data).length > 0) return r;
       } catch (e) { lastErr = e; }

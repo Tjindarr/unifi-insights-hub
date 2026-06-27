@@ -15,12 +15,18 @@ function DpiPage() {
   const { data: dpi, isLive } = useDpi();
   const dpiTopApps = dpi.apps;
   const dpiByCategory = dpi.byCategory;
+  const empty = dpiTopApps.length === 0 && dpiByCategory.length === 0;
   const max = dpiTopApps[0] ? dpiTopApps[0].rx + dpiTopApps[0].tx : 1;
   return (
     <div>
       <PageHeader title="DPI / Apps" description="Top applications and categories by traffic" actions={<DemoBadge isLive={isLive} />} />
 
       <div className="p-6 space-y-6">
+        {empty && isLive && (
+          <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+            UniFi is connected, but it returned no application traffic yet. Make sure Traffic Identification is enabled, then allow a few minutes of real client traffic. For troubleshooting run <span className="font-mono text-foreground">/api/_debug/raw-dpi</span> from the container.
+          </div>
+        )}
         <div className="rounded-lg border border-border bg-card">
           <div className="px-4 py-3 border-b border-border">
             <h2 className="text-sm font-medium">Traffic by category</h2>
