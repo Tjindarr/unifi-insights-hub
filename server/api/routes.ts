@@ -501,7 +501,10 @@ export async function registerApi(
       }
     }
 
-    const abuseKey = process.env.ABUSEIPDB_KEY || process.env.ABUSEIPDB_API_KEY;
+    const abuseKey =
+      config.get().threatIntel.abuseIpdbKey ||
+      process.env.ABUSEIPDB_KEY ||
+      process.env.ABUSEIPDB_API_KEY;
     if (abuseKey && needAbuse.length) {
       await Promise.all(needAbuse.slice(0, 25).map(async (ip) => {
         try {
