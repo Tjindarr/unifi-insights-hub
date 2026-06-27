@@ -79,7 +79,7 @@ function WanPage() {
               <tr><th className="text-left px-3 py-2">When</th><th className="text-right px-3 py-2">Download</th><th className="text-right px-3 py-2">Upload</th><th className="text-right px-3 py-2">Ping</th></tr>
             </thead>
             <tbody>
-              {wan.speedTests.map((t) => (
+              {speedTests.map((t) => (
                 <tr key={t.t} className="border-t border-border">
                   <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(t.t).toLocaleDateString()}</td>
                   <td className="px-3 py-2 text-right font-mono text-rx">{formatBits(t.down)}</td>
