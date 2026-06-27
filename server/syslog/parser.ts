@@ -98,7 +98,7 @@ export function parseSyslog(line: string, fallbackHost = "unknown"): ParsedSyslo
     /\bSTA-TRACKER\b/.test(message) ||
     /\b(UFW|UBNT|FW)[\s_-]+(BLOCK|ALLOW|DENY|DROP|REJECT|ACCEPT)\b/i.test(message) ||
     // UniFi iptables rule-tag prefix, e.g. "[WAN_LOCAL-2000-D]IN=eth4 OUT= ..."
-    /\[[A-Z0-9_]+-\d+-[A-Z]\]/.test(message) ||
+    /\[[A-Z0-9_]+-(?:\d+-[A-Z]|[A-Z]-\d+)\]/.test(message) ||
     // Generic kernel netfilter trace
     (/\bkernel\b/i.test(appname + " " + message) && /\bIN=\S*.*\bSRC=/.test(message)) ||
     /\bis_firewall\b/.test(line) ||
