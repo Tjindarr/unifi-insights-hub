@@ -169,6 +169,8 @@ function runRetention() {
   const bySyslogAge = pruneOlderThan(db, r.retentionDays);
   const byFirewallAge = pruneFirewallOlderThan(db, r.retentionFirewallDays);
   const bySize = pruneToMaxSize(db, r.maxDbMb * 1024 * 1024);
+  // Enrichment tables share the syslog retention window.
+  pruneEnrichmentsOlderThan(db, r.retentionDays);
   const now = Date.now();
   let vacuumed = false;
   if (now - lastVacuum > r.vacuumHours * 3600_000) {
