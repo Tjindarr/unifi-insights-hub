@@ -81,6 +81,11 @@ function SettingsPage() {
   const [threatMsg, setThreatMsg] = useState<string | null>(null);
   const [feeds, setFeeds] = useState<FeedStatus[]>([]);
   const [checkOnMiss, setCheckOnMiss] = useState(true);
+  const [syslogForm, setSyslogForm] = useState<{ tzOffsetMinutes: number; useArrivalTime: boolean }>({
+    tzOffsetMinutes: 0, useArrivalTime: false,
+  });
+  const [savingSyslog, setSavingSyslog] = useState(false);
+  const [syslogMsg, setSyslogMsg] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState<string | null>(null);
   const [savingUnifi, setSavingUnifi] = useState(false);
   const [savingRet, setSavingRet] = useState(false);
