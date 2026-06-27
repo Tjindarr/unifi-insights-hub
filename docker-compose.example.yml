@@ -4,38 +4,26 @@ services:
     image: unifi-dashboard:latest
     container_name: unifi-dashboard
     restart: unless-stopped
-    # host network makes the syslog source IP show the real device IP in the
-    # parsed `host` field. If you prefer bridge networking, swap to the ports
-    # block below and remove `network_mode`.
-    # network_mode: host
-    ports:
-      - "3000:3000/tcp"      # web UI
-      - "514:514/udp"        # syslog (point your UniFi devices here)
+    # Host network preserves the syslog source IP (recommended on Unraid).
+    # If you'd rather use bridge mode, comment out network_mode and uncomment
+    # the ports block below.
+    network_mode: host
+    # ports:
+    #   - "3000:3000/tcp"
+    #   - "514:514/udp"
     volumes:
+      # Holds the SQLite DB AND config.json (UniFi credentials, retention,
+      # auto-generated session secret). Survives image updates.
       - /mnt/user/appdata/unifi-dashboard:/data
-    environment:
-      # ---- UniFi controller (read-only local user) ----
-      UNIFI_HOST: 192.168.1.1
-      UNIFI_USER: readonly
-      UNIFI_PASSWORD: change-me
-      UNIFI_SITE: default
-
-      # ---- Dashboard auth (admin/admin on first run, forced password change) ----
-      DASH_USER: admin
-      DASH_PASSWORD: admin
-      # Generate with: openssl rand -hex 32
-      SESSION_SECRET: replace-with-32-plus-random-chars-please-please
-
-      # ---- Retention policy ----
-      RETENTION_DAYS: "30"            # drop syslog older than N days
-      RETENTION_FIREWALL_DAYS: "30"   # drop firewall events older than N days
-      RETENTION_MAX_DB_MB: "2048"     # hard size cap; oldest rows pruned to fit
-      RETENTION_INTERVAL_MIN: "60"    # how often the cleanup job runs
-      RETENTION_VACUUM_HOURS: "24"    # how often to VACUUM (reclaim disk)
-
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 20s
+
+# First-run flow:
+#   1. docker compose up -d
+#   2. Open http://<unraid-ip>:3000, log in as admin / admin, set a new password
+#   3. In Settings, fill in UniFi host, read-only user, password, site
+#   4. On the UDR: Settings → System → Remote Syslog → <unraid-ip>:514 (UDP)
