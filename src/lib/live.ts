@@ -276,31 +276,40 @@ function bucketEvents<T extends string>(
 // window even when the table only fetched the most recent 500 rows.
 export function useFirewallByMinute(range: TimeRangeKey = "1h") {
   const spec = bucketSpecForRange(range);
-  const since = Date.now() - spec.windowMs;
-  // Round `since` to the bucket boundary so the query key only changes when a
-  // new bucket boundary is crossed (otherwise we'd refetch on every render).
-  const sinceKey = Math.floor(since / spec.bucketMs) * spec.bucketMs;
+  // Use a stable query key per range so we don't drop cached data every time
+  // the bucket boundary advances (that caused the chart to flash empty). The
+  // refetchInterval drives freshness; `since` is recomputed inside queryFn.
   type BucketRow = { t: number; success: number; failure: number };
   const { data, isLive } = useLive<BucketRow[]>(
-    `firewall-buckets:${range}:${sinceKey}`,
-    () => getJson<BucketRow[]>(`/api/firewall/buckets?since=${sinceKey}&bucketMs=${spec.bucketMs}`),
+    `firewall-buckets:${range}`,
+    () => {
+      const sinceNow = Math.floor((Date.now() - spec.windowMs) / spec.bucketMs) * spec.bucketMs;
+      return getJson<BucketRow[]>(`/api/firewall/buckets?since=${sinceNow}&bucketMs=${spec.bucketMs}`);
+    },
     [],
     15_000,
   );
   if (!isLive) return { data: mockFwByMin, isLive: false, label: "per minute" };
 
-  // Seed empty buckets so the chart spans the full window even when sparse.
-  const now = Date.now();
-  const first = Math.floor(sinceKey / spec.bucketMs) * spec.bucketMs;
+  // Anchor the chart end to whichever is later: wall-clock or the newest
+  // bucket returned by the server. UDR event timestamps are frequently ahead
+  // of the browser clock, and without this the future buckets would be
+  // silently dropped and the chart would render all zeros.
+  const wallNow = Date.now();
+  let latest = wallNow;
+  for (const r of data) if (r.t > latest) latest = r.t + spec.bucketMs - 1;
+  const start = latest - spec.windowMs;
+  const first = Math.floor(start / spec.bucketMs) * spec.bucketMs;
   const rowByT = new Map<number, BucketRow>();
   for (const r of data) rowByT.set(r.t, r);
   const out: { t: string; success: number; failure: number }[] = [];
-  for (let t = first; t <= now; t += spec.bucketMs) {
+  for (let t = first; t <= latest; t += spec.bucketMs) {
     const r = rowByT.get(t);
     out.push({ t: new Date(t).toISOString(), success: r?.success ?? 0, failure: r?.failure ?? 0 });
   }
   return { data: out, isLive: true, label: spec.label };
 }
+
 
 // Internal events bucketed for the active time range, by category.
 export function useInternalByBucket(
