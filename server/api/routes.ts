@@ -245,7 +245,7 @@ export async function registerApi(
   app.get("/api/ports", async (_req, reply) => {
     if (!requireLive()) return reply.code(204).send();
     const { mapPorts } = await import("../unifi/mappers.ts");
-    return mapPorts(snap("unifi_devices_snapshot"));
+    return mapPorts(snap("unifi_devices_snapshot"), snap("unifi_clients_snapshot"));
   });
 
   app.get("/api/firmware", async (_req, reply) => {
