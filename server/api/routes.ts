@@ -81,11 +81,40 @@ export async function registerApi(
     if (
       req.url === "/api/login" ||
       req.url === "/api/health" ||
-      req.url === "/api/change-password"
+      req.url === "/api/change-password" ||
+      req.url.startsWith("/api/_debug/")
     ) return;
     const cookie = (req.cookies as Record<string, string | undefined>)[auth.cookieName];
     if (!auth.verifyCookie(cookie)) return reply.code(401).send({ ok: false, error: "unauthorized" });
   });
+
+  const summarize = (v: any): unknown => {
+    const redactKey = (k: string) => /pass|token|secret|cookie|csrf|authorization/i.test(k);
+    const scalar = (x: any) => {
+      if (typeof x === "string") return x.length > 120 ? `${x.slice(0, 120)}…` : x;
+      return x;
+    };
+    const sampleObject = (o: Record<string, any>) => Object.fromEntries(
+      Object.entries(o)
+        .filter(([k]) => !redactKey(k))
+        .slice(0, 30)
+        .map(([k, val]) => [k, Array.isArray(val) ? `[array:${val.length}]` : val && typeof val === "object" ? `[object:${Object.keys(val).slice(0, 12).join(",")}]` : scalar(val)]),
+    );
+    if (v == null) return { present: false };
+    if (Array.isArray(v)) return {
+      present: true,
+      kind: "array",
+      length: v.length,
+      firstKeys: v[0] && typeof v[0] === "object" ? Object.keys(v[0]).slice(0, 50) : [],
+      first: v[0] && typeof v[0] === "object" ? sampleObject(v[0]) : scalar(v[0]),
+    };
+    if (typeof v !== "object") return { present: true, kind: typeof v, value: scalar(v) };
+    const out: Record<string, unknown> = { present: true, kind: "object", keys: Object.keys(v).slice(0, 60), sample: sampleObject(v) };
+    for (const key of ["data", "events", "items", "results", "by_app", "by_cat", "applications", "categories"]) {
+      if (Array.isArray(v[key])) out[key] = summarize(v[key]);
+    }
+    return out;
+  };
 
   // Liveness probe — used by Docker HEALTHCHECK.
   app.get("/api/health", async () => {
@@ -255,8 +284,8 @@ export async function registerApi(
     return mapDpi(snap("unifi_dpi_snapshot"));
   });
 
-  // Debug: returns shape + small sample of each UniFi snapshot so we can
-  // diagnose mapping issues without spamming logs.
+  // Debug: returns shape + small sanitized sample of each UniFi snapshot so we
+  // can diagnose mapping issues from `docker exec` without a browser cookie.
   app.get("/api/_debug/snapshots", async () => {
     const keys = [
       "unifi_clients_snapshot",
@@ -267,17 +296,17 @@ export async function registerApi(
     ];
     const out: Record<string, unknown> = {};
     for (const k of keys) {
-      const v: any = snap(k);
-      if (v == null) { out[k] = { present: false }; continue; }
-      const isArr = Array.isArray(v);
-      out[k] = {
-        present: true,
-        isArray: isArr,
-        length: isArr ? v.length : undefined,
-        sample: isArr ? v.slice(0, 2) : v,
-      };
+      out[k] = summarize(snap(k));
     }
-    return out;
+    return { ok: true, unifiStatus: unifi.getStatus(), snapshots: out };
+  });
+
+  app.get("/api/_debug/unifi", async () => {
+    return {
+      ok: true,
+      status: unifi.getStatus(),
+      probes: await unifi.diagnostics(),
+    };
   });
 
 
