@@ -328,15 +328,24 @@ function SettingsPage() {
       <style>{`
         .input {
           width: 100%;
-          background: hsl(var(--background) / 0.4);
+          background: hsl(var(--input));
           border: 1px solid hsl(var(--border));
+          box-shadow: inset 0 0 0 1px hsl(var(--border) / 0.4);
           border-radius: 6px;
-          padding: 6px 8px;
-          font-size: 12px;
+          padding: 8px 10px;
+          font-size: 13px;
           font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
           color: hsl(var(--foreground));
+          transition: border-color .12s, box-shadow .12s, background .12s;
         }
-        .input:focus { outline: none; border-color: hsl(var(--primary)); }
+        .input::placeholder { color: hsl(var(--muted-foreground) / 0.7); }
+        .input:hover { border-color: hsl(var(--primary) / 0.5); }
+        .input:focus {
+          outline: none;
+          border-color: hsl(var(--primary));
+          box-shadow: 0 0 0 2px hsl(var(--primary) / 0.25);
+          background: hsl(var(--background));
+        }
       `}</style>
     </div>
   );

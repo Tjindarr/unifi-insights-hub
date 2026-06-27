@@ -28,14 +28,14 @@ function ChangePasswordPage() {
   if (!isAuthenticated()) return <Navigate to="/login" />;
   const forced = mustChangePassword();
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (next !== confirm) {
       setError("Passwords do not match.");
       return;
     }
-    const res = changePassword(current, next);
+    const res = await changePassword(current, next);
     if (!res.ok) {
       setError(res.error);
       return;
