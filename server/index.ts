@@ -33,7 +33,7 @@ import { ConfigStore } from "./config.ts";
 const here = dirname(fileURLToPath(import.meta.url));
 const env = (k: string, fallback?: string) => process.env[k] ?? fallback;
 
-const HTTP_PORT = Number(env("HTTP_PORT", "3000"));
+const HTTP_PORT = Number(env("HTTP_PORT", "8095"));
 const SYSLOG_UDP_PORT = Number(env("SYSLOG_UDP_PORT", "514"));
 const DB_PATH = env("DB_PATH", "/data/unifi.db")!;
 const CONFIG_PATH = env("CONFIG_PATH", "/data/config.json")!;

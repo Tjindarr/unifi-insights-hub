@@ -21,7 +21,7 @@ COPY server ./server
 COPY --from=frontend /app/dist ./dist
 
 ENV NODE_ENV=production \
-    HTTP_PORT=3000 \
+    HTTP_PORT=8095 \
     SYSLOG_UDP_PORT=514 \
     DB_PATH=/data/unifi.db \
     CONFIG_PATH=/data/config.json
@@ -30,7 +30,7 @@ ENV NODE_ENV=production \
 
 
 VOLUME ["/data"]
-EXPOSE 3000/tcp
+EXPOSE 8095/tcp
 EXPOSE 514/udp
 
 # Healthcheck hits the unauthenticated /api/health endpoint; returns DB stats too.
