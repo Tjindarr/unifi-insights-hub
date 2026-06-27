@@ -292,16 +292,21 @@ export function mapPorts(rawDevices: any, rawClients?: any): MappedPort[] {
         p.lldp_chassis_id ||
         undefined;
 
-      // Client count: port mac_table, then device mac_table by port_idx, then clients snapshot.
+      // Client count: port mac_table, then device mac_table by port_idx, then clients snapshot,
+      // plus any uplinked APs/switches that pin to this port.
       const portMacTable: any[] = Array.isArray(p.mac_table) ? p.mac_table : [];
       const fromDevMac = devMacTable.filter((m) => Number(m.port_idx ?? m.sw_port) === idx).length;
       const fromClients = clientCounts.get(`${devMac}:${idx}`) ?? 0;
-      const clientCount =
+      const uplinked = devUplinks.get(`${devMac}:${idx}`);
+      const baseCount =
         portMacTable.length ||
         fromDevMac ||
         fromClients ||
         Number(p.num_sta ?? 0) ||
         0;
+      const clientCount = baseCount + (uplinked?.count ?? 0);
+
+      const neighborName = neighbor || (uplinked?.names.length ? uplinked.names.join(", ") : undefined);
 
       out.push({
         id: idx,
@@ -314,7 +319,7 @@ export function mapPorts(rawDevices: any, rawClients?: any): MappedPort[] {
         poeMax,
         rxErr,
         txErr,
-        neighbor,
+        neighbor: neighborName,
         clientCount,
       });
     }
