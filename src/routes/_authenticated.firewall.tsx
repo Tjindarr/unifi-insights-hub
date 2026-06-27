@@ -7,6 +7,7 @@ import { PageHeader, SeverityDot } from "@/components/app-shell";
 import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
 import { useFirewall, useFirewallByMinute } from "@/lib/live";
+import { useUI } from "@/lib/ui-store";
 import { deauthReasonMap, geoLookup } from "@/lib/mock-extra";
 import {
   describeFirewallEvent,
