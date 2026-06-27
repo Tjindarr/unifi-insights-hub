@@ -215,7 +215,21 @@ const app = Fastify({ logger: { level: "info" } });
 await app.register(cookie);
 await app.register(websocket);
 
-await registerApi(app, { db, auth });
+await registerApi(app, {
+  db,
+  auth,
+  retention: {
+    config: {
+      retentionDays: RETENTION_DAYS,
+      retentionFirewallDays: RETENTION_FIREWALL_DAYS,
+      maxDbMb: RETENTION_MAX_DB_MB,
+      intervalMin: RETENTION_INTERVAL_MIN,
+      vacuumHours: RETENTION_VACUUM_HOURS,
+    },
+    state: retention,
+    run: runRetention,
+  },
+});
 
 app.get("/ws", { websocket: true }, (conn, req) => {
   const cookies = (req.headers.cookie ?? "")
