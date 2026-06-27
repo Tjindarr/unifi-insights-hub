@@ -143,9 +143,12 @@ setInterval(() => {
 // ---- HTTP server ----
 
 const auth = makeAuth({
-  user: req("DASH_USER"),
-  password: req("DASH_PASSWORD"),
+  db,
   secret: req("SESSION_SECRET"),
+  // Optional first-run seed override; defaults to admin / admin and forces
+  // a password change on first successful login.
+  seedUser: env("DASH_USER"),
+  seedPassword: env("DASH_PASSWORD"),
 });
 
 const app = Fastify({ logger: { level: "info" } });
