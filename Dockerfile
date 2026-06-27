@@ -18,7 +18,7 @@ RUN apk add --no-cache python3 make g++ sqlite wget tini
 COPY server/package.json server/package.json
 RUN cd server && npm install --no-audit --no-fund
 COPY server ./server
-COPY --from=frontend /app/dist ./dist
+COPY --from=frontend /app/dist/client ./dist
 
 ENV NODE_ENV=production \
     HTTP_PORT=8095 \
