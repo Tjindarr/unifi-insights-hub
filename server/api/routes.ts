@@ -300,6 +300,7 @@ export async function registerApi(
       "unifi_events_snapshot",
       "unifi_dpi_snapshot",
       "unifi_dpi_catalog_snapshot",
+      "unifi_speedtest_snapshot",
     ];
     const out: Record<string, unknown> = {};
     for (const k of keys) {
