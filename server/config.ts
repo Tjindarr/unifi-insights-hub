@@ -1,0 +1,127 @@
+// Persistent runtime configuration, stored at /data/config.json so it survives
+// container updates. Environment variables seed the file on first run only;
+// after that the UI is the source of truth.
+
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, chmodSync } from "node:fs";
+import { dirname } from "node:path";
+import { randomBytes } from "node:crypto";
+
+export type UnifiSettings = {
+  host: string;
+  user: string;
+  password: string;
+  site: string;
+  enabled: boolean;
+};
+
+export type RetentionSettings = {
+  retentionDays: number;
+  retentionFirewallDays: number;
+  maxDbMb: number;
+  intervalMin: number;
+  vacuumHours: number;
+};
+
+export type AppConfig = {
+  unifi: UnifiSettings;
+  retention: RetentionSettings;
+  sessionSecret: string;
+};
+
+const env = (k: string, fallback?: string) => process.env[k] ?? fallback;
+const num = (k: string, fb: number) => {
+  const v = process.env[k];
+  const n = v ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : fb;
+};
+
+function defaults(): AppConfig {
+  return {
+    unifi: {
+      host: env("UNIFI_HOST", "") ?? "",
+      user: env("UNIFI_USER", "") ?? "",
+      password: env("UNIFI_PASSWORD", "") ?? "",
+      site: env("UNIFI_SITE", "default") ?? "default",
+      enabled: !!env("UNIFI_HOST"),
+    },
+    retention: {
+      retentionDays: num("RETENTION_DAYS", 30),
+      retentionFirewallDays: num("RETENTION_FIREWALL_DAYS", 30),
+      maxDbMb: num("RETENTION_MAX_DB_MB", 2048),
+      intervalMin: num("RETENTION_INTERVAL_MIN", 60),
+      vacuumHours: num("RETENTION_VACUUM_HOURS", 24),
+    },
+    sessionSecret: env("SESSION_SECRET", "") ?? "",
+  };
+}
+
+function merge(base: AppConfig, patch: Partial<AppConfig>): AppConfig {
+  return {
+    unifi: { ...base.unifi, ...(patch.unifi ?? {}) },
+    retention: { ...base.retention, ...(patch.retention ?? {}) },
+    sessionSecret: patch.sessionSecret || base.sessionSecret,
+  };
+}
+
+export class ConfigStore {
+  private cfg: AppConfig;
+  private listeners = new Set<(cfg: AppConfig) => void>();
+
+  constructor(private path: string) {
+    mkdirSync(dirname(path), { recursive: true });
+    const base = defaults();
+    let loaded: Partial<AppConfig> = {};
+    if (existsSync(path)) {
+      try {
+        loaded = JSON.parse(readFileSync(path, "utf8")) as Partial<AppConfig>;
+      } catch (err) {
+        console.error("[config] failed to parse", path, err);
+      }
+    }
+    this.cfg = merge(base, loaded);
+    // Auto-generate a session secret on first launch if not provided.
+    if (!this.cfg.sessionSecret || this.cfg.sessionSecret.length < 32) {
+      this.cfg.sessionSecret = randomBytes(32).toString("hex");
+    }
+    this.persist();
+  }
+
+  get(): AppConfig {
+    return this.cfg;
+  }
+
+  /** Public-safe view — never returns the UniFi password or session secret. */
+  publicView() {
+    return {
+      unifi: {
+        host: this.cfg.unifi.host,
+        user: this.cfg.unifi.user,
+        site: this.cfg.unifi.site,
+        enabled: this.cfg.unifi.enabled,
+        hasPassword: !!this.cfg.unifi.password,
+      },
+      retention: { ...this.cfg.retention },
+    };
+  }
+
+  update(patch: Partial<AppConfig>): AppConfig {
+    this.cfg = merge(this.cfg, patch);
+    this.persist();
+    for (const l of this.listeners) {
+      try { l(this.cfg); } catch (err) { console.error("[config] listener failed", err); }
+    }
+    return this.cfg;
+  }
+
+  onChange(fn: (cfg: AppConfig) => void) {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+
+  private persist() {
+    const tmp = this.path + ".tmp";
+    writeFileSync(tmp, JSON.stringify(this.cfg, null, 2), "utf8");
+    try { chmodSync(tmp, 0o600); } catch { /* non-fatal on some FS */ }
+    renameSync(tmp, this.path);
+  }
+}
