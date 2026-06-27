@@ -33,7 +33,7 @@ type Deps = {
   retention: { config: RetentionConfig; state: RetentionState; run: () => void };
 };
 
-export async function registerApi(app: FastifyInstance, { db, auth }: Deps) {
+export async function registerApi(app: FastifyInstance, { db, auth, retention }: Deps) {
   // ---- auth ----
   app.post<{ Body: { username: string; password: string } }>("/api/login", async (req, reply) => {
     const { username, password } = req.body ?? ({} as Record<string, string>);
