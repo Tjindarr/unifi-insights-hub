@@ -98,7 +98,6 @@ function InternalPage() {
   }, [categorised, filter, q]);
 
   const { data: byBucket, label: bucketLabel } = useInternalByBucket(
-    internal,
     internalCategory,
     CHART_SERIES.map((s) => s.key),
     range,
