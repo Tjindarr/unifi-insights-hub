@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CheckCircle2, HardDrive, PlayCircle, RefreshCw, Router, Save, ShieldAlert, XCircle } from "lucide-react";
+import { CheckCircle2, Database, DownloadCloud, HardDrive, PlayCircle, RefreshCw, Router, Save, ShieldAlert, XCircle } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
 import { formatBytes, formatDateTime } from "@/lib/format";
