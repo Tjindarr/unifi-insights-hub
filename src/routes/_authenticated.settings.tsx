@@ -328,9 +328,9 @@ function SettingsPage() {
       <style>{`
         .input {
           width: 100%;
-          background: hsl(var(--input));
-          border: 1px solid hsl(var(--border));
-          box-shadow: inset 0 0 0 1px hsl(var(--border) / 0.4);
+          background: oklch(0.34 0.012 250);
+          border: 1px solid oklch(0.55 0.015 250);
+          box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
           border-radius: 6px;
           padding: 8px 10px;
           font-size: 13px;
@@ -338,13 +338,13 @@ function SettingsPage() {
           color: hsl(var(--foreground));
           transition: border-color .12s, box-shadow .12s, background .12s;
         }
-        .input::placeholder { color: hsl(var(--muted-foreground) / 0.7); }
-        .input:hover { border-color: hsl(var(--primary) / 0.5); }
+        .input::placeholder { color: oklch(0.60 0.018 250); }
+        .input:hover { background: oklch(0.38 0.012 250); border-color: oklch(0.70 0.14 200); }
         .input:focus {
           outline: none;
-          border-color: hsl(var(--primary));
-          box-shadow: 0 0 0 2px hsl(var(--primary) / 0.25);
-          background: hsl(var(--background));
+          border-color: oklch(0.90 0.14 200);
+          box-shadow: 0 0 0 2px oklch(0.78 0.14 200 / 0.35), inset 0 1px 3px rgba(0, 0, 0, 0.25);
+          background: oklch(0.42 0.012 250);
         }
       `}</style>
     </div>
