@@ -248,6 +248,54 @@ function SettingsPage() {
     } finally { setSavingThreat(false); }
   }
 
+  async function toggleFeed(id: string, enabled: boolean) {
+    // Optimistic UI; revert on error.
+    setFeeds((prev) => prev.map((f) => (f.id === id ? { ...f, enabled } : f)));
+    try {
+      const r = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ threatIntel: { feeds: { [id]: enabled } } }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const j = (await r.json()) as Settings;
+      setSettings(j);
+      await loadFeeds();
+    } catch {
+      await loadFeeds();
+    }
+  }
+
+  async function toggleCheckOnMiss(v: boolean) {
+    setCheckOnMiss(v);
+    try {
+      const r = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ threatIntel: { checkOnMiss: v } }),
+      });
+      if (r.ok) setSettings((await r.json()) as Settings);
+    } catch { /* ignore */ }
+  }
+
+  async function refreshFeed(id: string) {
+    setRefreshing(id);
+    try {
+      await fetch(`/api/threat-feeds/refresh/${encodeURIComponent(id)}`, { method: "POST" });
+      await loadFeeds();
+    } finally { setRefreshing(null); }
+  }
+
+  async function refreshAllFeeds() {
+    setRefreshing("__all__");
+    try {
+      await fetch("/api/threat-feeds/refresh", { method: "POST" });
+      await loadFeeds();
+    } finally { setRefreshing(null); }
+  }
+
+
+
 
   const status = settings?.unifiStatus;
 
