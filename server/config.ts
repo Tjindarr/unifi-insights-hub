@@ -58,6 +58,11 @@ function defaults(): AppConfig {
       intervalMin: num("RETENTION_INTERVAL_MIN", 60),
       vacuumHours: num("RETENTION_VACUUM_HOURS", 24),
     },
+    noiseFilter: {
+      enabled: (env("NOISE_FILTER", "true") ?? "true") !== "false",
+      action: (env("NOISE_FILTER_ACTION", "drop") === "downgrade" ? "downgrade" : "drop"),
+      patterns: [],
+    },
     sessionSecret: env("SESSION_SECRET", "") ?? "",
   };
 }
@@ -66,6 +71,7 @@ function merge(base: AppConfig, patch: Partial<AppConfig>): AppConfig {
   return {
     unifi: { ...base.unifi, ...(patch.unifi ?? {}) },
     retention: { ...base.retention, ...(patch.retention ?? {}) },
+    noiseFilter: { ...base.noiseFilter, ...(patch.noiseFilter ?? {}) },
     sessionSecret: patch.sessionSecret || base.sessionSecret,
   };
 }
