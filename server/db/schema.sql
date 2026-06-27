@@ -58,6 +58,28 @@ CREATE TABLE IF NOT EXISTS firewall_events (
 CREATE INDEX IF NOT EXISTS idx_fw_time   ON firewall_events(time DESC);
 CREATE INDEX IF NOT EXISTS idx_fw_action ON firewall_events(action, time DESC);
 CREATE INDEX IF NOT EXISTS idx_fw_mac    ON firewall_events(client_mac, time DESC);
+-- Covering composite for bucket aggregation (time-range scan + action sum).
+CREATE INDEX IF NOT EXISTS idx_fw_time_action ON firewall_events(time, action);
+-- Search-filter indexes used by the firewall page.
+CREATE INDEX IF NOT EXISTS idx_fw_srcip  ON firewall_events(src_ip, time DESC) WHERE src_ip IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_fw_dstip  ON firewall_events(dst_ip, time DESC) WHERE dst_ip IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_fw_rule   ON firewall_events(rule, time DESC) WHERE rule IS NOT NULL;
+-- Partial indexes that mirror the kind predicates so bucket queries can
+-- skip rows of the other kind without a full table scan.
+CREATE INDEX IF NOT EXISTS idx_fw_kind_firewall ON firewall_events(time, action) WHERE
+  src_ip IS NOT NULL
+  OR dst_ip IS NOT NULL
+  OR rule LIKE 'LAN\_%' ESCAPE '\'
+  OR rule LIKE 'WAN\_%' ESCAPE '\'
+  OR rule LIKE 'GUEST\_%' ESCAPE '\'
+  OR rule IN ('UFW','UBNT','FW');
+CREATE INDEX IF NOT EXISTS idx_fw_kind_internal ON firewall_events(time, action) WHERE
+  src_ip IS NULL AND dst_ip IS NULL
+  AND (rule IS NULL OR (
+    rule NOT LIKE 'LAN\_%' ESCAPE '\'
+    AND rule NOT LIKE 'WAN\_%' ESCAPE '\'
+    AND rule NOT LIKE 'GUEST\_%' ESCAPE '\'
+  ));
 
 -- Snapshot of the latest UniFi API state. Single-row tables to keep things simple.
 CREATE TABLE IF NOT EXISTS unifi_clients_snapshot (
