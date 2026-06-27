@@ -189,7 +189,6 @@ export function useFirewall(): Live<FirewallEvent[]> {
 
 // Bucket sizing for time-range driven charts.
 import type { TimeRangeKey } from "./ui-store";
-import type { FirewallEvent } from "./mock-data";
 
 export function bucketSpecForRange(range: TimeRangeKey): { windowMs: number; bucketMs: number; label: string } {
   switch (range) {
