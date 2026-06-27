@@ -25,7 +25,7 @@ function EventsPage() {
 
   return (
     <div>
-      <PageHeader title="Events" description="Admin actions, WAN flaps, firmware, system" />
+      <PageHeader title="Events" description="Admin actions, WAN flaps, firmware, system" actions={<DemoBadge isLive={isLive} />} />
       <div className="p-6">
         <ul className="rounded-lg border border-border bg-card divide-y divide-border">
           {siteEvents.map((e) => {
