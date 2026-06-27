@@ -72,16 +72,25 @@ function WanPage() {
         <div className="rounded-lg border border-border bg-card">
           <div className="px-4 py-3 border-b border-border">
             <h2 className="text-sm font-medium">Speed test history</h2>
-            <p className="text-xs text-muted-foreground">Daily auto-test</p>
+            <p className="text-xs text-muted-foreground">Throughput per test (Mbps/Gbps), not total data</p>
           </div>
           <table className="w-full text-sm">
             <thead className="text-[11px] uppercase tracking-wider text-muted-foreground bg-secondary/40">
-              <tr><th className="text-left px-3 py-2">When</th><th className="text-right px-3 py-2">Download</th><th className="text-right px-3 py-2">Upload</th><th className="text-right px-3 py-2">Ping</th></tr>
+              <tr>
+                <th className="text-left px-3 py-2">When</th>
+                <th className="text-right px-3 py-2">Download speed</th>
+                <th className="text-right px-3 py-2">Upload speed</th>
+                <th className="text-right px-3 py-2">Ping</th>
+              </tr>
             </thead>
             <tbody>
-              {speedTests.map((t) => (
+              {speedTests.length === 0 ? (
+                <tr><td colSpan={4} className="px-3 py-6 text-center text-xs text-muted-foreground">
+                  No speed test results yet. Run a speedtest from the UniFi app or wait for the next scheduled run.
+                </td></tr>
+              ) : speedTests.map((t) => (
                 <tr key={t.t} className="border-t border-border">
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(t.t).toLocaleDateString()}</td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(t.t).toLocaleString()}</td>
                   <td className="px-3 py-2 text-right font-mono text-rx">{formatBits(t.down)}</td>
                   <td className="px-3 py-2 text-right font-mono text-tx">{formatBits(t.up)}</td>
                   <td className="px-3 py-2 text-right font-mono">{t.ping.toFixed(1)} ms</td>
