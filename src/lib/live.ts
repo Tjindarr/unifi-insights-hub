@@ -326,16 +326,31 @@ export function useFirewallByMinute(range: TimeRangeKey = "1h", fallbackEvents: 
 
 
 // Internal events bucketed for the active time range, by category.
+// Fetches its own window of events (independent of the page's "Last N" limit)
+// so the chart always reflects the full selected time range.
 export function useInternalByBucket(
-  events: FirewallEvent[],
   categorise: (e: FirewallEvent) => string,
   categories: readonly string[],
   range: TimeRangeKey = "1h",
 ) {
+  const spec = bucketSpecForRange(range);
+  const { data: chartRows, isLive } = useLive<FwRow[]>(
+    `internal-chart:${range}`,
+    () => {
+      // Pull a window slightly larger than the visible range so future-stamped
+      // events (UDR clock drift) aren't trimmed. High row cap so chart is
+      // independent of the table's Last-N selector.
+      const since = Date.now() - spec.windowMs - 5 * 60_000;
+      return getJson<FwRow[]>(`/api/firewall?kind=internal&since=${since}&limit=50000`);
+    },
+    [],
+    15_000,
+  );
+  const events = isLive ? normFw(chartRows as FwRow[], new Map()) : [];
   const mapped = events.map((e) => ({ time: e.time, key: categorise(e) }));
   return {
     data: bucketEvents(mapped, range, categories),
-    label: bucketSpecForRange(range).label,
+    label: spec.label,
   };
 }
 
