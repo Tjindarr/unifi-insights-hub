@@ -144,7 +144,11 @@ export async function registerApi(
         maxDbMb: number; intervalMin: number; vacuumHours: number;
       }>;
       noiseFilter?: Partial<{ enabled: boolean; action: "drop" | "downgrade"; patterns: string[] }>;
-      threatIntel?: Partial<{ abuseIpdbKey: string }>;
+      threatIntel?: Partial<{
+        abuseIpdbKey: string;
+        feeds: Record<string, boolean>;
+        checkOnMiss: boolean;
+      }>;
     };
   }>("/api/settings", async (req, reply) => {
     const body = req.body ?? {};
