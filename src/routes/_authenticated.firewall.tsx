@@ -41,11 +41,12 @@ function FirewallPage() {
   const grouped = useMemo(() => {
     if (view === "list") return [];
     const key = view === "rule" ? "rule" : view === "mac" ? "clientMac" : "srcIp";
-    const map = new Map<string, { key: string; count: number; failures: number; last: string }>();
+    const map = new Map<string, { key: string; name?: string; count: number; failures: number; last: string }>();
     for (const e of rows) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const k = ((e as any)[key] as string) ?? "—";
-      const g = map.get(k) ?? { key: k, count: 0, failures: 0, last: e.time };
+      const g = map.get(k) ?? { key: k, name: view === "mac" ? e.clientName : undefined, count: 0, failures: 0, last: e.time };
+      if (view === "mac" && !g.name && e.clientName) g.name = e.clientName;
       g.count++;
       if (e.action === "failure") g.failures++;
       if (e.time > g.last) g.last = e.time;
