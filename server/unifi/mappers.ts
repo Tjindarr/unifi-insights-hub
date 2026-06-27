@@ -147,15 +147,35 @@ export function mapClients(raw: any): MappedClient[] {
 
 // ---- Overview ----
 
-export function mapOverview(rawClients: any, _rawDevices: any, _rawHealth: any) {
+export function mapOverview(rawClients: any, rawDevices: any, _rawHealth: any) {
   const clients = mapClients(rawClients);
   const wireless = clients.filter((c) => !c.wired).length;
   const wired = clients.length - wireless;
   const avgSat = clients.length
     ? Math.round(clients.reduce((a, c) => a + c.satisfaction, 0) / clients.length)
     : 100;
-  const totalRx = clients.reduce((a, c) => a + c.rxRate, 0);
-  const totalTx = clients.reduce((a, c) => a + c.txRate, 0);
+  // Prefer WAN throughput from the gateway device (true uplink) and fall back
+  // to summing per-client recent-rate counters if the gateway doesn't publish
+  // them. UniFi reports bytes/sec on `wan1`/`wan2`/`uplink`; some firmwares
+  // use `rx_bytes-r`, others use the bracket key `rx-bytes-r`.
+  const devs: Raw[] = Array.isArray(rawDevices) ? rawDevices : [];
+  const gw = devs.find((d) => ["ugw", "udm", "uxg"].includes(String(d.type)));
+  const wanBps = (key: "rx" | "tx") => {
+    if (!gw) return 0;
+    const k1 = `${key}-bytes-r`;
+    const k2 = `${key}_bytes-r`;
+    const fromObj = (o: any) => num(o?.[k1] ?? o?.[k2]);
+    return (
+      fromObj(gw.wan1) +
+      fromObj(gw.wan2) ||
+      fromObj(gw.uplink) ||
+      fromObj(gw)
+    );
+  };
+  const gwRx = wanBps("rx");
+  const gwTx = wanBps("tx");
+  const totalRx = gwRx || clients.reduce((a, c) => a + c.rxRate, 0);
+  const totalTx = gwTx || clients.reduce((a, c) => a + c.txRate, 0);
   const topTalkers = [...clients]
     .sort((a, b) => b.rxRate + b.txRate - a.rxRate - a.txRate)
     .slice(0, 10);
@@ -164,8 +184,9 @@ export function mapOverview(rawClients: any, _rawDevices: any, _rawHealth: any) 
     wired,
     wireless,
     avgSatisfaction: avgSat,
-    currentRx: totalRx,
-    currentTx: totalTx,
+    // Convert bytes/sec → bits/sec for the WAN tiles (formatBits expects bps).
+    currentRx: Math.floor(totalRx * 8),
+    currentTx: Math.floor(totalTx * 8),
     topTalkers,
   };
 }

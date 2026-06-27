@@ -252,9 +252,7 @@ export async function registerApi(
   app.get("/api/dpi", async (_req, reply) => {
     if (!requireLive()) return reply.code(204).send();
     const { mapDpi } = await import("../unifi/mappers.ts");
-    const out = mapDpi(snap("unifi_dpi_snapshot"));
-    if (!out.apps.length) return reply.code(204).send();
-    return out;
+    return mapDpi(snap("unifi_dpi_snapshot"));
   });
 
   // Collector health for the header banner.
