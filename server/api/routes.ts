@@ -202,6 +202,12 @@ export async function registerApi(
     return mapClients(snap<unknown[]>("unifi_clients_snapshot") ?? []);
   });
 
+  // Per-client enrichment derived from syslog: MAC↔IP history, DHCP-known
+  // hostname, and Wi-Fi auth-event timeline. Always live from the local DB.
+  app.get<{ Params: { mac: string } }>("/api/clients/:mac/details", async (req) => {
+    return clientDetails(db, req.params.mac);
+  });
+
   app.get("/api/devices", async (_req, reply) => {
     if (!requireLive()) return reply.code(204).send();
     return snap("unifi_devices_snapshot") ?? [];
