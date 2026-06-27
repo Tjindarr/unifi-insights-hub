@@ -16,7 +16,8 @@ import { CommandPalette } from "@/components/command-palette";
 
 type NavItem = {
   to: "/" | "/clients" | "/network" | "/wan" | "/topology" | "/dpi" | "/ports"
-    | "/firewall" | "/events" | "/logs" | "/settings";
+    | "/firewall" | "/events" | "/logs" | "/raw" | "/settings";
+
   label: string;
   icon: typeof LayoutDashboard;
   exact?: boolean;
