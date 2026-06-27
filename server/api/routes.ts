@@ -324,6 +324,23 @@ export async function registerApi(
     return { ok: true, count: list.length, sample: list.slice(0, 2) };
   });
 
+  // Dump the first port from each device so we can see PoE/LLDP/error field names.
+  app.get("/api/_debug/raw-ports", async () => {
+    const raw = snap("unifi_devices_snapshot") as any;
+    const devs: any[] = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
+    return {
+      ok: true,
+      devices: devs.map((d) => ({
+        name: d?.name ?? d?.mac,
+        type: d?.type,
+        portCount: Array.isArray(d?.port_table) ? d.port_table.length : 0,
+        firstActivePort:
+          (Array.isArray(d?.port_table) ? d.port_table : []).find((p: any) => p?.up) ??
+          d?.port_table?.[0] ??
+          null,
+      })),
+    };
+
   app.get("/api/_debug/raw-speedtest", async () => {
     const raw = snap("unifi_speedtest_snapshot") as any;
     const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
