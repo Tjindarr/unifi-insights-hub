@@ -15,7 +15,7 @@ import { HealthBanner } from "@/components/health-banner";
 import { CommandPalette } from "@/components/command-palette";
 
 type NavItem = {
-  to: "/" | "/clients" | "/network" | "/wan" | "/topology" | "/dpi" | "/ports"
+  to: "/" | "/clients" | "/network" | "/wan" | "/topology" | "/ports"
     | "/firewall" | "/internal" | "/events" | "/logs" | "/raw" | "/settings";
 
   label: string;
