@@ -316,6 +316,19 @@ export async function registerApi(
     return { ok: true, count: list.length, sample: list.slice(0, 2) };
   });
 
+  // Dump raw DPI/traffic snapshot and mapped output for diagnosing empty Apps/DPI.
+  app.get("/api/_debug/raw-dpi", async () => {
+    const raw = snap("unifi_dpi_snapshot") as any;
+    const { mapDpi } = await import("../unifi/mappers.ts");
+    const mapped = mapDpi(raw);
+    const list = Array.isArray(raw?.client_usage_by_app) ? raw.client_usage_by_app
+      : Array.isArray(raw?.data?.client_usage_by_app) ? raw.data.client_usage_by_app
+      : Array.isArray(raw?.data) ? raw.data
+      : Array.isArray(raw) ? raw
+      : [];
+    return { ok: true, raw: summarize(raw), mapped, sample: list.slice(0, 3) };
+  });
+
 
 
   // Collector health for the header banner.

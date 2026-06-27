@@ -444,17 +444,22 @@ export function mapEvents(rawEvents: any) {
 // ---- DPI ----
 
 const DPI_CAT: Record<number, string> = {
-  0: "Web", 1: "Streaming", 2: "Gaming", 3: "Messaging", 4: "Cloud",
-  5: "Audio", 6: "Video Conf", 7: "Dev", 8: "System", 9: "Backup",
+  0: "Instant messaging", 1: "P2P", 3: "File transfer", 4: "Streaming media",
+  5: "Mail & collaboration", 6: "Voice over IP", 7: "Database", 8: "Games",
+  9: "Network management", 10: "Remote access", 11: "Proxies & tunnels",
+  12: "Stock market", 13: "Web", 14: "Security update", 15: "Web IM",
+  17: "Business", 18: "Network protocols", 19: "Network protocols",
+  20: "Network protocols", 23: "Private protocol", 24: "Social network",
+  255: "Unknown",
 };
 
 export function mapDpi(rawDpi: any) {
-  const arr: Raw[] = arrayFrom(rawDpi, ["data", "items", "results", "applications"]);
+  const arr: Raw[] = arrayFrom(rawDpi, ["data", "items", "results", "applications", "client_usage_by_app"]);
   const root = rawDpi && typeof rawDpi === "object" && !Array.isArray(rawDpi) ? rawDpi : null;
-  if (root && arr.length === 0 && (Array.isArray(root.by_app) || Array.isArray(root.by_cat))) arr.push(root);
-  // Items can be { by_app: [...] } (sitedpi), direct app rows, or per-station
-  // { mac, by_app: [...] } (stadpi). Aggregate across all by_app/app entries.
-  // Aggregate across all by_app entries by app id.
+  if (root && arr.length === 0 && (Array.isArray(root.by_app) || Array.isArray(root.by_cat) || Array.isArray(root.usage_by_app))) arr.push(root);
+  // Items can be { by_app: [...] } (legacy sitedpi), direct app rows,
+  // { mac, by_app: [...] } (legacy stadpi), or Network 9.1+ v2 traffic rows:
+  // { client, usage_by_app: [{ application, category, bytes_received, ... }] }.
   const agg = new Map<string, { name: string; category: string; rx: number; tx: number }>();
   const catAgg = new Map<string, number>();
   for (const item of arr) {
@@ -466,22 +471,28 @@ export function mapDpi(rawDpi: any) {
     }
     const list: Raw[] = Array.isArray(item?.by_app)
       ? item.by_app
+      : Array.isArray(item?.usage_by_app)
+        ? item.usage_by_app
       : Array.isArray(item?.apps)
         ? item.apps
-        : (item?.app != null || item?.app_id != null || item?.app_name != null || item?.rx_bytes != null || item?.tx_bytes != null)
+        : (item?.app != null || item?.app_id != null || item?.application != null || item?.app_name != null || item?.rx_bytes != null || item?.tx_bytes != null || item?.total_bytes != null)
           ? [item]
           : [];
     for (const a of list) {
-      const id = String(a.app ?? a.app_id ?? a.app_name ?? "unknown");
-      const key = `${a.cat ?? "?"}/${id}`;
+      const appId = a.app ?? a.app_id ?? a.application ?? a.app_name ?? "unknown";
+      const catId = a.cat ?? a.category ?? "?";
+      const id = String(appId);
+      const key = `${catId}/${id}`;
       const prev = agg.get(key) ?? {
-        name: str(a.app_name ?? a.name ?? a.application ?? `App ${id}`),
-        category: str(a.cat_name ?? a.category ?? DPI_CAT[num(a.cat)] ?? `Cat ${a.cat ?? "?"}`),
+        name: str(a.app_name ?? a.name ?? a.application_name ?? (typeof appId === "number" ? `App ${id}` : appId) ?? `App ${id}`),
+        category: str(a.cat_name ?? a.category_name ?? DPI_CAT[num(catId)] ?? `Cat ${catId}`),
         rx: 0,
         tx: 0,
       };
-      const rx = num(a.rx_bytes ?? a.rxBytes ?? a.rx_bytes_r ?? a.bytes_rx ?? a.rx);
-      const tx = num(a.tx_bytes ?? a.txBytes ?? a.tx_bytes_r ?? a.bytes_tx ?? a.tx);
+      let rx = num(a.rx_bytes ?? a.rxBytes ?? a.rx_bytes_r ?? a.bytes_rx ?? a.bytes_received ?? a.rx);
+      let tx = num(a.tx_bytes ?? a.txBytes ?? a.tx_bytes_r ?? a.bytes_tx ?? a.bytes_transmitted ?? a.tx);
+      const total = num(a.total_bytes ?? a.totalBytes ?? a.bytes);
+      if (!rx && !tx && total) { rx = total; tx = 0; }
       prev.rx += rx;
       prev.tx += tx;
       agg.set(key, prev);
