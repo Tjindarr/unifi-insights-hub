@@ -116,6 +116,14 @@ function InternalPage() {
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <DemoBadge isLive={isLive} />
+            <select
+              value={limit}
+              onChange={(e) => setLimit(Number(e.target.value) as LimitOpt)}
+              className="h-8 rounded-md border border-border bg-card px-2 text-xs"
+              title="Maximum events to fetch"
+            >
+              {LIMITS.map((n) => <option key={n} value={n}>Last {n.toLocaleString()}</option>)}
+            </select>
             <button
               onClick={() => exportNdjson("internal-events", rows)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60"
