@@ -1,7 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Activity, AlertCircle, BarChart3, Cable, Command as CommandIcon, FileText, Flame,
-  LayoutDashboard, LogOut, Network, Plug, ScrollText, Search, Settings,
+  LayoutDashboard, LogOut, Network, Plug, Radio, ScrollText, Search, Settings,
   Shield, Wifi,
 
 } from "lucide-react";
