@@ -3,14 +3,13 @@ import { useEffect, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { isAuthenticated, mustChangePassword } from "@/lib/auth";
+import { UIProvider } from "@/lib/ui-store";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
 });
 
 function AuthenticatedLayout() {
-  // SSR-safe: defer the auth check to the client so we don't reference
-  // localStorage during prerender.
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [forceChange, setForceChange] = useState(false);
@@ -21,18 +20,15 @@ function AuthenticatedLayout() {
     setReady(true);
   }, []);
 
-  if (!ready) {
-    return <div className="min-h-screen bg-background" />;
-  }
-  if (!authed) {
-    return <Navigate to="/login" />;
-  }
-  if (forceChange) {
-    return <Navigate to="/change-password" />;
-  }
+  if (!ready) return <div className="min-h-screen bg-background" />;
+  if (!authed) return <Navigate to="/login" />;
+  if (forceChange) return <Navigate to="/change-password" />;
+
   return (
-    <AppShell>
-      <Outlet />
-    </AppShell>
+    <UIProvider>
+      <AppShell>
+        <Outlet />
+      </AppShell>
+    </UIProvider>
   );
 }
