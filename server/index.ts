@@ -152,6 +152,17 @@ udp.on("message", (buf, rinfo) => {
 udp.on("listening", () => {
   const a = udp.address();
   console.log(`[syslog] listening on udp://${a.address}:${a.port}`);
+  // Show how RFC3164 timestamps (no tz field) will be interpreted. If the
+  // router and container disagree, set TZ=Europe/Stockholm (or similar) on
+  // the container, or set tzOffsetMinutes in Settings.
+  const tzName = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const tzOffMin = -new Date().getTimezoneOffset();
+  const cfgOff = loadConfig().tzOffsetMinutes;
+  console.log(
+    `[syslog] interpreting router timestamps as TZ=${tzName} ` +
+    `(UTC${tzOffMin >= 0 ? "+" : ""}${tzOffMin / 60}h)` +
+    (cfgOff ? `, with manual offset ${cfgOff} min` : "")
+  );
 });
 udp.bind(SYSLOG_UDP_PORT);
 

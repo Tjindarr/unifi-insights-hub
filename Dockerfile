@@ -16,7 +16,9 @@ RUN npm run build
 FROM node:22-alpine AS server
 WORKDIR /app
 # wget is used by the HEALTHCHECK; sqlite for ad-hoc debugging from `docker exec`.
-RUN apk add --no-cache python3 make g++ sqlite wget tini
+# tzdata lets users set TZ=Europe/Stockholm (etc.) so RFC3164 syslog
+# timestamps from UniFi devices are interpreted in the router's local zone.
+RUN apk add --no-cache python3 make g++ sqlite wget tini tzdata
 COPY server/package.json server/package.json
 RUN cd server && npm install --no-audit --no-fund
 COPY server ./server
