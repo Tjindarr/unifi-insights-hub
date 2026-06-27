@@ -16,6 +16,7 @@ import {
   openDb,
   makeSyslogInsert,
   makeFirewallInsert,
+  invalidateBucketCache,
   pruneOlderThan,
   pruneFirewallOlderThan,
   pruneToMaxSize,
