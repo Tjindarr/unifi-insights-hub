@@ -91,6 +91,13 @@ function SettingsPage() {
   const [retMsg, setRetMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  async function loadFeeds() {
+    try {
+      const f = await fetch("/api/threat-feeds").then((x) => (x.ok ? x.json() : null));
+      if (f?.feeds) setFeeds(f.feeds as FeedStatus[]);
+    } catch { /* preview mode */ }
+  }
+
   async function load() {
     try {
       const [s, r] = await Promise.all([
@@ -116,9 +123,11 @@ function SettingsPage() {
         }
         // Threat-intel form: never receive the saved key — only whether one exists.
         setThreatForm({ abuseIpdbKey: "" });
+        if (s.threatIntel?.checkOnMiss != null) setCheckOnMiss(!!s.threatIntel.checkOnMiss);
       }
       if (r) setRetention(r);
     } catch { /* preview mode */ }
+    await loadFeeds();
   }
   useEffect(() => { load(); }, []);
 
