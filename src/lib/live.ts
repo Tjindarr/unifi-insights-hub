@@ -314,8 +314,8 @@ export function useFirewallByMinute(range: TimeRangeKey = "1h") {
 
 
 // Internal events bucketed for the active time range, by category.
-// Fetches its own window of events (independent of the page's "Last N" limit)
-// so the chart always reflects the full selected time range.
+// Uses a dedicated SQL aggregation endpoint, so it is controlled only by the
+// global time range and never by the page's "Last N" table limit.
 export function useInternalByBucket(
   categorise: (e: FirewallEvent) => string,
   categories: readonly string[],

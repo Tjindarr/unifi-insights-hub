@@ -258,7 +258,7 @@ export function firewallBuckets(
   opts: { since?: number; rangeMs?: number; bucketMs: number; kind?: "internal" | "firewall" },
 ): BucketRow[] {
   const cacheKey = `actions:${opts.kind ?? "all"}:${opts.bucketMs}:${opts.rangeMs ?? ""}:${bucketCacheVersion}`;
-  const cached = bucketCache.get(cacheKey);
+  const cached = bucketCache.get(cacheKey) as { at: number; rows: BucketRow[] } | undefined;
   const now = Date.now();
   if (cached && now - cached.at < BUCKET_CACHE_TTL_MS) return cached.rows;
 
