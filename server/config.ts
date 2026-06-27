@@ -36,12 +36,25 @@ export type ThreatIntelSettings = {
   checkOnMiss: boolean;
 };
 
+export type SyslogSettings = {
+  /**
+   * Offset in minutes that the router's clock is AHEAD of UTC.
+   * UniFi RFC3164 timestamps have no timezone — set this to your router's
+   * timezone offset (e.g. 120 for CEST, 60 for CET, -300 for EST).
+   * Use 0 if your container TZ already matches the router.
+   */
+  tzOffsetMinutes: number;
+  /** When true, ignore the router's timestamp and stamp on arrival. */
+  useArrivalTime: boolean;
+};
+
 
 export type AppConfig = {
   unifi: UnifiSettings;
   retention: RetentionSettings;
   noiseFilter: NoiseFilterSettings;
   threatIntel: ThreatIntelSettings;
+  syslog: SyslogSettings;
   sessionSecret: string;
 };
 
