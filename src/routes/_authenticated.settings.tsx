@@ -198,6 +198,27 @@ function SettingsPage() {
     } finally { setSavingNoise(false); }
   }
 
+  async function saveThreat(opts: { clear?: boolean } = {}) {
+    setSavingThreat(true); setThreatMsg(null);
+    try {
+      const r = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          threatIntel: { abuseIpdbKey: opts.clear ? "" : threatForm.abuseIpdbKey.trim() },
+        }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const j = (await r.json()) as Settings;
+      setSettings(j);
+      setThreatForm({ abuseIpdbKey: "" });
+      setThreatMsg(opts.clear ? "Key removed." : "Key saved.");
+    } catch (err) {
+      setThreatMsg("Save failed: " + (err instanceof Error ? err.message : String(err)));
+    } finally { setSavingThreat(false); }
+  }
+
+
   const status = settings?.unifiStatus;
 
   return (
