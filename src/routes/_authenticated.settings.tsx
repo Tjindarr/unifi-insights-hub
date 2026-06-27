@@ -130,6 +130,12 @@ function SettingsPage() {
         // Threat-intel form: never receive the saved key — only whether one exists.
         setThreatForm({ abuseIpdbKey: "" });
         if (s.threatIntel?.checkOnMiss != null) setCheckOnMiss(!!s.threatIntel.checkOnMiss);
+        if (s.syslog) {
+          setSyslogForm({
+            tzOffsetMinutes: Number(s.syslog.tzOffsetMinutes) || 0,
+            useArrivalTime: !!s.syslog.useArrivalTime,
+          });
+        }
       }
       if (r) setRetention(r);
     } catch { /* preview mode */ }
