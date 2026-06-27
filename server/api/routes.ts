@@ -340,6 +340,7 @@ export async function registerApi(
           null,
       })),
     };
+  });
 
   app.get("/api/_debug/raw-speedtest", async () => {
     const raw = snap("unifi_speedtest_snapshot") as any;
