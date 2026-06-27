@@ -5,7 +5,7 @@ import { Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { isAuthenticated, signIn } from "@/lib/auth";
+import { isAuthenticated, mustChangePassword, signIn } from "@/lib/auth";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -16,20 +16,23 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  if (isAuthenticated()) return <Navigate to="/" />;
+  if (isAuthenticated()) {
+    return <Navigate to={mustChangePassword() ? "/change-password" : "/"} />;
+  }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (signIn(username, password)) {
-      navigate({ to: "/" });
-    } else {
-      setError("Enter a username and password.");
+    const res = signIn(username, password);
+    if (!res.ok) {
+      setError(res.error);
+      return;
     }
+    navigate({ to: res.mustChange ? "/change-password" : "/" });
   }
 
   return (
@@ -53,7 +56,6 @@ function LoginPage() {
               autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              autoFocus
             />
           </div>
           <div className="space-y-2">
@@ -64,6 +66,7 @@ function LoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoFocus
             />
           </div>
           {error && <p className="text-xs text-destructive">{error}</p>}
@@ -71,9 +74,9 @@ function LoginPage() {
         </form>
 
         <p className="mt-6 text-[11px] leading-relaxed text-muted-foreground">
-          Preview mode — any non-empty credentials work. The deployed container
-          uses a server-side timing-safe check against <code className="font-mono">DASH_USER</code> /{" "}
-          <code className="font-mono">DASH_PASSWORD</code> with an encrypted session cookie.
+          Default credentials: <code className="font-mono">admin</code> /{" "}
+          <code className="font-mono">admin</code>. You'll be asked to set a new
+          password on first sign in.
         </p>
       </div>
     </div>

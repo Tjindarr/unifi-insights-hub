@@ -2,7 +2,7 @@ import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
-import { isAuthenticated } from "@/lib/auth";
+import { isAuthenticated, mustChangePassword } from "@/lib/auth";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -13,9 +13,11 @@ function AuthenticatedLayout() {
   // localStorage during prerender.
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [forceChange, setForceChange] = useState(false);
 
   useEffect(() => {
     setAuthed(isAuthenticated());
+    setForceChange(mustChangePassword());
     setReady(true);
   }, []);
 
@@ -24,6 +26,9 @@ function AuthenticatedLayout() {
   }
   if (!authed) {
     return <Navigate to="/login" />;
+  }
+  if (forceChange) {
+    return <Navigate to="/change-password" />;
   }
   return (
     <AppShell>
