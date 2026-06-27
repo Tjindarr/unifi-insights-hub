@@ -114,6 +114,7 @@ export class ConfigStore {
         hasPassword: !!this.cfg.unifi.password,
       },
       retention: { ...this.cfg.retention },
+      noiseFilter: { ...this.cfg.noiseFilter },
     };
   }
 
