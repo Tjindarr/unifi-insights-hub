@@ -6,6 +6,7 @@
 // also expose `isLive` so pages can show a "Demo data" badge.
 
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import {
   clients as mockClients,
