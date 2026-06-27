@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 
 import {
   dbStats,
+  firewallBuckets,
   getSnapshot,
   recentFirewall,
   recentSyslog,
@@ -461,15 +462,25 @@ export async function registerApi(
 
   // ---- firewall ----
   app.get<{
-    Querystring: { q?: string; action?: string; mac?: string; limit?: string };
+    Querystring: { q?: string; action?: string; mac?: string; limit?: string; since?: string };
   }>("/api/firewall", async (req) => {
-    const { q, action, mac, limit } = req.query;
+    const { q, action, mac, limit, since } = req.query;
     return recentFirewall(db, {
       q: q || undefined,
       action: action || undefined,
       clientMac: mac || undefined,
       limit: limit ? Number(limit) : 500,
+      since: since ? Number(since) : undefined,
     });
+  });
+
+  // Aggregated time buckets for the firewall "events per minute" chart.
+  app.get<{
+    Querystring: { since?: string; bucketMs?: string };
+  }>("/api/firewall/buckets", async (req) => {
+    const since = req.query.since ? Number(req.query.since) : Date.now() - 60 * 60_000;
+    const bucketMs = req.query.bucketMs ? Number(req.query.bucketMs) : 60_000;
+    return firewallBuckets(db, { since, bucketMs });
   });
 
   // ---- IP enrichment (GeoIP via ip-api.com; threat via AbuseIPDB if key set) ----
