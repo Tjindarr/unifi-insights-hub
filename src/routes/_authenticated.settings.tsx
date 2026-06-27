@@ -340,7 +340,50 @@ function SettingsPage() {
           </p>
         </section>
 
-        {/* ---- Install ---- */}
+        {/* ---- Noise filter ---- */}
+        <section className="rounded-lg border border-border bg-card p-5">
+          <h2 className="text-sm font-medium">Syslog noise filter</h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Built-in defaults already strip the very chatty UDR housekeeping lines
+            (<code className="font-mono">_udapi_lu_set_inform_interval</code>,{" "}
+            <code className="font-mono">smp-affinity-monitor</code>, WiFi IRQ affinity, periodic STA stat dumps).
+            Add your own JavaScript regex patterns below, one per line.
+          </p>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={noiseForm.enabled}
+                onChange={(e) => setNoiseForm((f) => ({ ...f, enabled: e.target.checked }))} />
+              Enable noise filter
+            </label>
+            <Field label="Action for matched lines">
+              <select className="input"
+                value={noiseForm.action}
+                onChange={(e) => setNoiseForm((f) => ({ ...f, action: e.target.value as "drop" | "downgrade" }))}>
+                <option value="drop">Drop (don't store)</option>
+                <option value="downgrade">Downgrade to debug (keep, hide by default)</option>
+              </select>
+            </Field>
+          </div>
+
+          <div className="mt-3">
+            <Field label="Additional regex patterns (one per line)">
+              <textarea className="input" rows={4}
+                placeholder={"e.g. mcad\\[\\d+\\]: ubnt_lr_recv\nntpd\\[\\d+\\]: Listen normally"}
+                value={noiseForm.patternsText}
+                onChange={(e) => setNoiseForm((f) => ({ ...f, patternsText: e.target.value }))} />
+            </Field>
+          </div>
+
+          <div className="mt-4 flex items-center gap-2">
+            <button onClick={saveNoise} disabled={savingNoise}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs bg-primary/10 hover:bg-primary/20 disabled:opacity-50">
+              <Save className="h-3.5 w-3.5" /> Save filter
+            </button>
+            {noiseMsg && <span className="text-[11px] text-muted-foreground">{noiseMsg}</span>}
+          </div>
+        </section>
+
         <section className="rounded-lg border border-border bg-card p-5">
           <h2 className="text-sm font-medium">Unraid install</h2>
           <p className="text-xs text-muted-foreground mt-1">
