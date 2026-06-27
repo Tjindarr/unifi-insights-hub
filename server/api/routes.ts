@@ -427,5 +427,95 @@ export async function registerApi(
       limit: limit ? Number(limit) : 500,
     });
   });
+
+  // ---- IP enrichment (GeoIP via ip-api.com; threat via AbuseIPDB if key set) ----
+  type IpInfoEntry = {
+    country?: string; cc?: string; city?: string; isp?: string;
+    abuseScore?: number; abuseReports?: number;
+  };
+  const ipCache = new Map<string, { at: number; data: IpInfoEntry }>();
+  const IP_TTL_MS = 6 * 60 * 60 * 1000;
+  const ABUSE_TTL_MS = 12 * 60 * 60 * 1000;
+  const abuseFetchedAt = new Map<string, number>();
+
+  app.get<{ Querystring: { ips?: string } }>("/api/ipinfo", async (req) => {
+    const raw = String(req.query.ips ?? "");
+    const ips = Array.from(new Set(
+      raw.split(",").map((s) => s.trim()).filter(Boolean),
+    )).slice(0, 100);
+    const now = Date.now();
+    const out: Record<string, IpInfoEntry> = {};
+    const needGeo: string[] = [];
+    const needAbuse: string[] = [];
+    for (const ip of ips) {
+      const cached = ipCache.get(ip);
+      if (cached && now - cached.at < IP_TTL_MS) {
+        out[ip] = cached.data;
+      } else {
+        needGeo.push(ip);
+      }
+      const ab = abuseFetchedAt.get(ip) ?? 0;
+      if (now - ab > ABUSE_TTL_MS) needAbuse.push(ip);
+    }
+
+    if (needGeo.length) {
+      try {
+        const r = await fetch(
+          "http://ip-api.com/batch?fields=status,country,countryCode,city,isp,query",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(needGeo.map((q) => ({ query: q }))),
+          },
+        );
+        if (r.ok) {
+          const arr = (await r.json()) as Array<Record<string, unknown>>;
+          for (const it of arr) {
+            const q = it?.query as string | undefined;
+            if (!q) continue;
+            const data: IpInfoEntry = {
+              country: it.country as string | undefined,
+              cc: it.countryCode as string | undefined,
+              city: it.city as string | undefined,
+              isp: it.isp as string | undefined,
+            };
+            const prev = ipCache.get(q)?.data ?? {};
+            const merged = { ...prev, ...data };
+            ipCache.set(q, { at: now, data: merged });
+            out[q] = merged;
+          }
+        }
+      } catch (err) {
+        app.log.warn({ err }, "ip-api lookup failed");
+      }
+    }
+
+    const abuseKey = process.env.ABUSEIPDB_KEY || process.env.ABUSEIPDB_API_KEY;
+    if (abuseKey && needAbuse.length) {
+      await Promise.all(needAbuse.slice(0, 25).map(async (ip) => {
+        try {
+          const r = await fetch(
+            `https://api.abuseipdb.com/api/v2/check?ipAddress=${encodeURIComponent(ip)}&maxAgeInDays=90`,
+            { headers: { Key: abuseKey, Accept: "application/json" } },
+          );
+          if (!r.ok) return;
+          const j = (await r.json()) as { data?: { abuseConfidenceScore?: number; totalReports?: number } };
+          const prev = ipCache.get(ip)?.data ?? {};
+          const merged: IpInfoEntry = {
+            ...prev,
+            abuseScore: j.data?.abuseConfidenceScore,
+            abuseReports: j.data?.totalReports,
+          };
+          ipCache.set(ip, { at: now, data: merged });
+          abuseFetchedAt.set(ip, now);
+          out[ip] = merged;
+        } catch {
+          /* swallow */
+        }
+      }));
+    }
+
+    return { ok: true, data: out, abuseEnabled: !!abuseKey };
+  });
 }
 
