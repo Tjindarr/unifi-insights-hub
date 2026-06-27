@@ -105,50 +105,22 @@ udp.on("listening", () => {
 });
 udp.bind(SYSLOG_UDP_PORT);
 
-// ---- UniFi poller ----
+// ---- UniFi poller (hot-reloads when settings change) ----
 
-const unifiHost = env("UNIFI_HOST");
-if (unifiHost) {
-  const unifi = new UnifiClient({
-    host: unifiHost,
-    user: req("UNIFI_USER"),
-    password: req("UNIFI_PASSWORD"),
-    site: env("UNIFI_SITE", "default")!,
-  });
-  const poll = async () => {
-    try {
-      const [clients, devices, health] = await Promise.all([
-        unifi.clients(),
-        unifi.devices(),
-        unifi.health(),
-      ]);
-      // UniFi wraps in { data: [...] }
-      const unwrap = (x: unknown) =>
-        x && typeof x === "object" && "data" in (x as Record<string, unknown>)
-          ? (x as { data: unknown }).data
-          : x;
-      setSnapshot(db, "unifi_clients_snapshot", unwrap(clients));
-      setSnapshot(db, "unifi_devices_snapshot", unwrap(devices));
-      setSnapshot(db, "unifi_health_snapshot", unwrap(health));
-    } catch (err) {
-      console.error("[unifi] poll failed", err);
-    }
-  };
-  poll();
-  setInterval(poll, 10_000);
-} else {
-  console.warn("[unifi] UNIFI_HOST not set — API polling disabled");
-}
+const unifi = new UnifiManager(db);
+unifi.apply(config.get().unifi);
+config.onChange((cfg) => unifi.apply(cfg.unifi));
 
 // ---- Retention / cleanup ----
-// Three layered policies, all configurable via env:
-//   1. RETENTION_DAYS           — drop syslog rows older than N days
-//   2. RETENTION_FIREWALL_DAYS  — drop firewall_events older than N days
-//   3. RETENTION_MAX_DB_MB      — hard cap on on-disk DB size; oldest rows
-//                                 are pruned until size is under the cap
-// VACUUM runs every RETENTION_VACUUM_HOURS to actually return space to disk.
+// Three layered policies, all set in the UI and stored in /data/config.json:
+//   1. retentionDays         — drop syslog rows older than N days
+//   2. retentionFirewallDays — drop firewall_events older than N days
+//   3. maxDbMb               — hard cap on on-disk DB size; oldest rows pruned to fit
+// VACUUM runs every vacuumHours to actually return space to disk.
 
 let lastVacuum = 0;
+let retentionTimer: NodeJS.Timeout | null = null;
+
 export const retention = {
   last: null as null | {
     at: number;
@@ -162,26 +134,22 @@ export const retention = {
 };
 
 function runRetention() {
+  const r = config.get().retention;
   const before = dbStats(db).sizeBytes;
-  const bySyslogAge = pruneOlderThan(db, RETENTION_DAYS);
-  const byFirewallAge = pruneFirewallOlderThan(db, RETENTION_FIREWALL_DAYS);
-  const bySize = pruneToMaxSize(db, RETENTION_MAX_DB_MB * 1024 * 1024);
+  const bySyslogAge = pruneOlderThan(db, r.retentionDays);
+  const byFirewallAge = pruneFirewallOlderThan(db, r.retentionFirewallDays);
+  const bySize = pruneToMaxSize(db, r.maxDbMb * 1024 * 1024);
   const now = Date.now();
   let vacuumed = false;
-  if (now - lastVacuum > RETENTION_VACUUM_HOURS * 3600_000) {
+  if (now - lastVacuum > r.vacuumHours * 3600_000) {
     vacuum(db);
     lastVacuum = now;
     vacuumed = true;
   }
   const after = dbStats(db).sizeBytes;
   retention.last = {
-    at: now,
-    bySyslogAge,
-    byFirewallAge,
-    bySize,
-    sizeBytesBefore: before,
-    sizeBytesAfter: after,
-    vacuumed,
+    at: now, bySyslogAge, byFirewallAge, bySize,
+    sizeBytesBefore: before, sizeBytesAfter: after, vacuumed,
   };
   if (bySyslogAge || byFirewallAge || bySize || vacuumed) {
     console.log(
@@ -191,19 +159,23 @@ function runRetention() {
   }
 }
 
-// Run once at startup then on a schedule.
+function scheduleRetention() {
+  if (retentionTimer) clearInterval(retentionTimer);
+  const min = Math.max(1, config.get().retention.intervalMin);
+  retentionTimer = setInterval(() => {
+    try { runRetention(); } catch (err) { console.error("[retention] failed", err); }
+  }, min * 60_000);
+}
+
 try { runRetention(); } catch (err) { console.error("[retention] failed", err); }
-setInterval(() => {
-  try { runRetention(); } catch (err) { console.error("[retention] failed", err); }
-}, Math.max(1, RETENTION_INTERVAL_MIN) * 60_000);
+scheduleRetention();
+config.onChange(scheduleRetention);
 
 // ---- HTTP server ----
 
 const auth = makeAuth({
   db,
-  secret: req("SESSION_SECRET"),
-  // Optional first-run seed override; defaults to admin / admin and forces
-  // a password change on first successful login.
+  secret: config.get().sessionSecret,
   seedUser: env("DASH_USER"),
   seedPassword: env("DASH_PASSWORD"),
 });
@@ -215,18 +187,12 @@ await app.register(websocket);
 await registerApi(app, {
   db,
   auth,
-  retention: {
-    config: {
-      retentionDays: RETENTION_DAYS,
-      retentionFirewallDays: RETENTION_FIREWALL_DAYS,
-      maxDbMb: RETENTION_MAX_DB_MB,
-      intervalMin: RETENTION_INTERVAL_MIN,
-      vacuumHours: RETENTION_VACUUM_HOURS,
-    },
-    state: retention,
-    run: runRetention,
-  },
+  config,
+  unifi,
+  retention: { state: retention, run: runRetention },
 });
+
+
 
 app.get("/ws", { websocket: true }, (conn, req) => {
   const cookies = (req.headers.cookie ?? "")
