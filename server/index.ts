@@ -227,6 +227,7 @@ await registerApi(app, {
   config,
   unifi,
   retention: { state: retention, run: runRetention },
+  threatFeeds,
 });
 
 
