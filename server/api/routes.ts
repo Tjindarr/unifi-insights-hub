@@ -31,11 +31,12 @@ type Deps = {
   config: ConfigStore;
   unifi: UnifiManager;
   retention: { state: RetentionState; run: () => void };
+  threatFeeds: ThreatFeedManager;
 };
 
 export async function registerApi(
   app: FastifyInstance,
-  { db, auth, config, unifi, retention }: Deps,
+  { db, auth, config, unifi, retention, threatFeeds }: Deps,
 ) {
   // ---- auth ----
   app.post<{ Body: { username: string; password: string } }>("/api/login", async (req, reply) => {
