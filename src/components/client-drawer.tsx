@@ -33,11 +33,15 @@ type ClientDetails = {
 };
 
 export function ClientDrawer({ id, onClose }: { id: string | null; onClose: () => void }) {
-  const client = id ? clients.find((c) => c.id === id) : null;
+  const { data: liveClients } = useClients();
+  const { data: liveFw } = useFirewall({ limit: 500 });
+  const clientList = liveClients?.length ? liveClients : mockClientsList;
+  const fwList = liveFw?.length ? liveFw : mockFwEvents;
+  const client = id ? clientList.find((c) => c.id === id || c.mac?.toLowerCase() === id.toLowerCase()) : null;
   const open = !!client;
   const history = client ? clientHistory[client.id] ?? [] : [];
   const dpi = client ? clientDpi[client.id] ?? [] : [];
-  const fwEvents = client ? firewallEvents.filter((e) => e.clientMac === client?.mac).slice(0, 12) : [];
+  const fwEvents = client ? fwList.filter((e) => e.clientMac?.toLowerCase() === client?.mac?.toLowerCase()).slice(0, 12) : [];
 
   const [details, setDetails] = useState<ClientDetails | null>(null);
   useEffect(() => {
