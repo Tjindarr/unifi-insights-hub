@@ -462,6 +462,7 @@ export async function registerApi(
   type IpInfoEntry = {
     country?: string; cc?: string; city?: string; isp?: string;
     abuseScore?: number; abuseReports?: number;
+    threatFeeds?: string[];
   };
   const GEO_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const ABUSE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -510,7 +511,7 @@ export async function registerApi(
     const now = Date.now();
     const out: Record<string, IpInfoEntry> = {};
     const needGeo: string[] = [];
-    const needAbuse: string[] = [];
+    const needAbuseCandidates: string[] = [];
 
     for (const ip of ips) {
       const row = selectIp.get(ip) as IpRow | undefined;
@@ -518,7 +519,28 @@ export async function registerApi(
       const geoAt = row?.geo_fetched_at ?? 0;
       const abAt = row?.abuse_fetched_at ?? 0;
       if (now - geoAt > GEO_TTL_MS) needGeo.push(ip);
-      if (now - abAt > ABUSE_TTL_MS) needAbuse.push(ip);
+
+      // Local threat-feed match takes precedence over the API. If the IP is
+      // in any blocklist we mark it as high-confidence and skip the /check
+      // call entirely, which protects the AbuseIPDB free-tier quota.
+      const feeds = threatFeeds.lookup(ip);
+      if (feeds && feeds.length) {
+        out[ip] = {
+          ...out[ip],
+          threatFeeds: feeds,
+          abuseScore: Math.max(out[ip].abuseScore ?? 0, 100),
+        };
+        // Persist as a cache hit so future requests don't re-spend lookups.
+        upsertAbuse.run({
+          ip,
+          score: Math.max(row?.abuse_score ?? 0, 100),
+          reports: row?.abuse_reports ?? null,
+          at: now,
+        });
+        continue;
+      }
+
+      if (now - abAt > ABUSE_TTL_MS) needAbuseCandidates.push(ip);
     }
 
     if (needGeo.length) {
@@ -558,12 +580,16 @@ export async function registerApi(
       }
     }
 
+    const ti = config.get().threatIntel;
     const abuseKey =
-      config.get().threatIntel.abuseIpdbKey ||
+      ti.abuseIpdbKey ||
       process.env.ABUSEIPDB_KEY ||
       process.env.ABUSEIPDB_API_KEY;
+
+    // Only spend /check quota when explicitly enabled AND a key is configured.
+    const needAbuse = ti.checkOnMiss !== false ? needAbuseCandidates : [];
     if (abuseKey && needAbuse.length) {
-      // Hard cap per request to prevent quota burn on log floods.
+      // Hard cap per request to protect the free-tier 1000/day quota.
       await Promise.all(needAbuse.slice(0, 25).map(async (ip) => {
         try {
           const r = await fetch(
@@ -590,10 +616,39 @@ export async function registerApi(
       ok: true,
       data: out,
       abuseEnabled: !!abuseKey,
+      checkOnMiss: ti.checkOnMiss !== false,
       cached: ips.length - needGeo.length,
       geoFetched: needGeo.length,
       abuseFetched: abuseKey ? Math.min(needAbuse.length, 25) : 0,
     };
   });
+
+  // ---- Threat feed management ---------------------------------------------
+  app.get("/api/threat-feeds", async () => ({
+    ok: true,
+    feeds: threatFeeds.status(),
+  }));
+
+  app.post("/api/threat-feeds/refresh", async () => {
+    const result = await threatFeeds.refreshDue();
+    return { ok: true, ...result, feeds: threatFeeds.status() };
+  });
+
+  app.post<{ Params: { source: string } }>(
+    "/api/threat-feeds/refresh/:source",
+    async (req, reply) => {
+      try {
+        const r = await threatFeeds.refreshOne(req.params.source);
+        return { ok: true, ...r, feeds: threatFeeds.status() };
+      } catch (err) {
+        return reply.code(400).send({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+          feeds: threatFeeds.status(),
+        });
+      }
+    },
+  );
 }
+
 
