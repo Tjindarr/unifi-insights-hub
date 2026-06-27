@@ -35,6 +35,8 @@ const nav: NavItem[] = [
   { to: "/firewall", label: "Firewall", icon: Flame,                         group: "Security" },
   { to: "/events",   label: "Events",   icon: AlertCircle,                   group: "Security" },
   { to: "/logs",     label: "Logs",     icon: ScrollText,                    group: "Security" },
+  { to: "/raw",      label: "Raw syslog", icon: FileText,                    group: "Security" },
+
   { to: "/settings", label: "Settings", icon: Settings,                      group: "System" },
 ];
 
