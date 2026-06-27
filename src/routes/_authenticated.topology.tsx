@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Router, Server, Wifi } from "lucide-react";
 
 import { PageHeader } from "@/components/app-shell";
-import { topology } from "@/lib/mock-extra";
+import { DemoBadge } from "@/components/demo-badge";
+import { useTopology } from "@/lib/live";
 
 export const Route = createFileRoute("/_authenticated/topology")({
   head: () => ({ meta: [{ title: "Topology — UniFi Dashboard" }] }),
@@ -10,9 +11,11 @@ export const Route = createFileRoute("/_authenticated/topology")({
 });
 
 function TopologyPage() {
+  const { data: topology, isLive } = useTopology();
   return (
     <div>
-      <PageHeader title="Topology" description="Gateway, switches, and access points" />
+      <PageHeader title="Topology" description="Gateway, switches, and access points" actions={<DemoBadge isLive={isLive} />} />
+
       <div className="p-6">
         <div className="rounded-lg border border-border bg-card p-8 overflow-auto">
           <div className="flex flex-col items-center gap-10 min-w-[640px]">
