@@ -141,29 +141,27 @@ function FirewallPage() {
             <ul className="divide-y divide-border">
               {rows.map((e) => {
                 const open = expanded === e.id;
-                const decoded = e.raw.deauth_reason ? deauthReasonMap[String(e.raw.deauth_reason)] : null;
+                const summary = describeFirewallEvent(e);
+                const chip = shortEventLabel(e);
+                void deauthReasonMap;
                 return (
                   <li key={e.id} className="text-sm">
-                    <button onClick={() => setExpanded(open ? null : e.id)} className="w-full px-4 py-3 grid grid-cols-12 gap-3 items-center text-left hover:bg-secondary/30 transition-colors">
+                    <button onClick={() => setExpanded(open ? null : e.id)} className="w-full px-4 py-3 grid grid-cols-12 gap-3 items-start text-left hover:bg-secondary/30 transition-colors">
                       <div className="col-span-2 flex items-center gap-2 text-xs font-mono">
                         <SeverityDot severity={e.severity} />
                         <span>{formatTime(e.time)}</span>
                         <span className="text-muted-foreground">{relativeTime(e.time)}</span>
                       </div>
                       <div className="col-span-2">
-                        <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-medium", e.action === "failure" ? "bg-severity-error/15 text-severity-error" : "bg-chart-2/15 text-chart-2")}>{e.action}</span>
-                        <div className="text-[10px] text-muted-foreground mt-0.5">{e.rule}</div>
+                        <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-medium", e.action === "failure" ? "bg-severity-error/15 text-severity-error" : "bg-chart-2/15 text-chart-2")}>{chip}</span>
+                        <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">{e.rule}</div>
                       </div>
                       <div className="col-span-3 min-w-0">
                         <div className="font-medium truncate">{e.clientName ?? <span className="text-muted-foreground">unknown</span>}</div>
                         <div className="text-[11px] text-muted-foreground font-mono truncate">{e.clientMac}</div>
                       </div>
-                      <div className="col-span-2 text-xs">
-                        <div className="font-mono">{e.vap ?? "—"}</div>
-                        <div className="text-muted-foreground">{e.rssi !== undefined ? `${e.rssi} dBm` : ""}</div>
-                      </div>
-                      <div className="col-span-2 text-xs text-muted-foreground truncate">
-                        {decoded ?? e.reason ?? e.messageType}
+                      <div className="col-span-4 text-xs text-foreground/90 leading-snug">
+                        {summary}
                       </div>
                       <div className="col-span-1 text-right"><ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform inline-block", open && "rotate-90")} /></div>
                     </button>
