@@ -22,9 +22,16 @@ export type RetentionSettings = {
   vacuumHours: number;
 };
 
+export type NoiseFilterSettings = {
+  enabled: boolean;
+  action: "drop" | "downgrade";
+  patterns: string[];
+};
+
 export type AppConfig = {
   unifi: UnifiSettings;
   retention: RetentionSettings;
+  noiseFilter: NoiseFilterSettings;
   sessionSecret: string;
 };
 
