@@ -28,7 +28,16 @@ export function openDb(path: string) {
 // few seconds collapses N concurrent requests into a single SQL pass.
 
 type BucketRow = { t: number; success: number; failure: number };
-const bucketCache = new Map<string, { at: number; rows: BucketRow[] }>();
+type InternalBucketRow = {
+  t: number;
+  connect: number;
+  disconnect: number;
+  authSuccess: number;
+  authFailure: number;
+  roam: number;
+  other: number;
+};
+const bucketCache = new Map<string, { at: number; rows: Array<BucketRow | InternalBucketRow> }>();
 const BUCKET_CACHE_TTL_MS = 5_000;
 let bucketCacheVersion = 0;
 
@@ -248,8 +257,8 @@ export function firewallBuckets(
   db: Database.Database,
   opts: { since?: number; rangeMs?: number; bucketMs: number; kind?: "internal" | "firewall" },
 ): BucketRow[] {
-  const cacheKey = `${opts.kind ?? "all"}:${opts.bucketMs}:${opts.rangeMs ?? ""}:${bucketCacheVersion}`;
-  const cached = bucketCache.get(cacheKey);
+  const cacheKey = `actions:${opts.kind ?? "all"}:${opts.bucketMs}:${opts.rangeMs ?? ""}:${bucketCacheVersion}`;
+  const cached = bucketCache.get(cacheKey) as { at: number; rows: BucketRow[] } | undefined;
   const now = Date.now();
   if (cached && now - cached.at < BUCKET_CACHE_TTL_MS) return cached.rows;
 
@@ -269,7 +278,8 @@ export function firewallBuckets(
 
   const wallSince = opts.since ?? now - (opts.rangeMs ?? 60 * 60_000);
   const rangeMs = opts.rangeMs ?? Math.max(opts.bucketMs, now - wallSince);
-  params.since = Math.floor((newest - rangeMs) / opts.bucketMs) * opts.bucketMs;
+  const end = Math.max(now, newest);
+  params.since = Math.floor((end - rangeMs) / opts.bucketMs) * opts.bucketMs;
   where.push("time >= @since");
 
   const rows = db.prepare(`
@@ -282,6 +292,68 @@ export function firewallBuckets(
     GROUP BY t
     ORDER BY t ASC
   `).all(params) as BucketRow[];
+
+  bucketCache.set(cacheKey, { at: now, rows });
+  return rows;
+}
+
+// Aggregate internal events by the same categories used in the UI. This keeps
+// the chart independent from the visible table limit and avoids fetching tens
+// of thousands of rows just to count them in the browser.
+export function internalEventBuckets(
+  db: Database.Database,
+  opts: { rangeMs?: number; bucketMs: number },
+): InternalBucketRow[] {
+  const cacheKey = `internal-categories:${opts.bucketMs}:${opts.rangeMs ?? ""}:${bucketCacheVersion}`;
+  const cached = bucketCache.get(cacheKey) as { at: number; rows: InternalBucketRow[] } | undefined;
+  const now = Date.now();
+  if (cached && now - cached.at < BUCKET_CACHE_TTL_MS) return cached.rows;
+
+  const params: Record<string, unknown> = { bucket: opts.bucketMs };
+  const newest = (db.prepare(`
+    SELECT MAX(time) AS newest FROM firewall_events
+    WHERE ${INTERNAL_WHERE}
+  `).get(params) as { newest: number | null }).newest;
+  if (newest == null) {
+    bucketCache.set(cacheKey, { at: now, rows: [] });
+    return [];
+  }
+
+  const rangeMs = opts.rangeMs ?? 60 * 60_000;
+  const end = Math.max(now, newest);
+  params.since = Math.floor((end - rangeMs) / opts.bucketMs) * opts.bucketMs;
+
+  const rows = db.prepare(`
+    WITH categorised AS (
+      SELECT
+        time,
+        CASE
+          WHEN action = 'failure' OR lower(coalesce(event_type,'')) GLOB '*fail*' THEN 'authFailure'
+          WHEN lower(coalesce(event_type,'')) IN ('success', 'sta_auth_success') THEN 'authSuccess'
+          WHEN lower(coalesce(event_type,'')) GLOB '*roam*' THEN 'roam'
+          WHEN lower(coalesce(event_type,'')) GLOB '*assoc*' OR lower(coalesce(message_type,'')) GLOB '*assoc*' THEN 'connect'
+          WHEN lower(coalesce(event_type,'')) GLOB '*leave*'
+            OR lower(coalesce(event_type,'')) GLOB '*disconnect*'
+            OR lower(coalesce(event_type,'')) GLOB '*deauth*'
+            OR lower(coalesce(message_type,'')) GLOB '*leave*' THEN 'disconnect'
+          ELSE 'other'
+        END AS category
+      FROM firewall_events
+      WHERE ${INTERNAL_WHERE}
+        AND time >= @since
+    )
+    SELECT
+      (time / @bucket) * @bucket AS t,
+      SUM(CASE WHEN category = 'connect' THEN 1 ELSE 0 END) AS connect,
+      SUM(CASE WHEN category = 'disconnect' THEN 1 ELSE 0 END) AS disconnect,
+      SUM(CASE WHEN category = 'authSuccess' THEN 1 ELSE 0 END) AS authSuccess,
+      SUM(CASE WHEN category = 'authFailure' THEN 1 ELSE 0 END) AS authFailure,
+      SUM(CASE WHEN category = 'roam' THEN 1 ELSE 0 END) AS roam,
+      SUM(CASE WHEN category = 'other' THEN 1 ELSE 0 END) AS other
+    FROM categorised
+    GROUP BY t
+    ORDER BY t ASC
+  `).all(params) as InternalBucketRow[];
 
   bucketCache.set(cacheKey, { at: now, rows });
   return rows;
