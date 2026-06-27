@@ -102,6 +102,39 @@ export function useCollector(): Live<CollectorStatus> {
 }
 
 // ---------------------------------------------------------------------------
+// Parsing health — rolling per-minute counters from the syslog ingester.
+// ---------------------------------------------------------------------------
+
+export type ParseHealthBucket = {
+  t: number;
+  accepted: number;
+  rejected: number;
+  tzSkewed: number;
+  cefFailures: number;
+};
+
+export type ParseHealth = {
+  buckets: ParseHealthBucket[];
+  windowTotals: Omit<ParseHealthBucket, "t">;
+  totals: Omit<ParseHealthBucket, "t">;
+};
+
+const EMPTY_PARSE_HEALTH: ParseHealth = {
+  buckets: [],
+  windowTotals: { accepted: 0, rejected: 0, tzSkewed: 0, cefFailures: 0 },
+  totals: { accepted: 0, rejected: 0, tzSkewed: 0, cefFailures: 0 },
+};
+
+export function useParseHealth(windowMin = 60): Live<ParseHealth> {
+  return useLive(
+    `parse-health:${windowMin}`,
+    () => getJson<ParseHealth>(`/api/parse-health?windowMin=${windowMin}`),
+    EMPTY_PARSE_HEALTH,
+    15_000,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Overview / clients
 // ---------------------------------------------------------------------------
 
