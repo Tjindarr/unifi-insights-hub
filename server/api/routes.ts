@@ -2,15 +2,35 @@ import type Database from "better-sqlite3";
 import type { FastifyInstance } from "fastify";
 
 import {
+  dbStats,
   getSnapshot,
   recentFirewall,
   recentSyslog,
 } from "./db/queries.ts";
 import type { makeAuth } from "./auth.ts";
 
+type RetentionConfig = {
+  retentionDays: number;
+  retentionFirewallDays: number;
+  maxDbMb: number;
+  intervalMin: number;
+  vacuumHours: number;
+};
+type RetentionState = {
+  last: null | {
+    at: number;
+    bySyslogAge: number;
+    byFirewallAge: number;
+    bySize: number;
+    sizeBytesBefore: number;
+    sizeBytesAfter: number;
+    vacuumed: boolean;
+  };
+};
 type Deps = {
   db: Database.Database;
   auth: ReturnType<typeof makeAuth>;
+  retention: { config: RetentionConfig; state: RetentionState; run: () => void };
 };
 
 export async function registerApi(app: FastifyInstance, { db, auth }: Deps) {
