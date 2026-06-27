@@ -157,7 +157,7 @@ udp.on("listening", () => {
   // the container, or set tzOffsetMinutes in Settings.
   const tzName = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const tzOffMin = -new Date().getTimezoneOffset();
-  const cfgOff = loadConfig().tzOffsetMinutes;
+  const cfgOff = ConfigStore.get().tzOffsetMinutes;
   console.log(
     `[syslog] interpreting router timestamps as TZ=${tzName} ` +
     `(UTC${tzOffMin >= 0 ? "+" : ""}${tzOffMin / 60}h)` +
