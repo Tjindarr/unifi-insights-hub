@@ -124,6 +124,9 @@ export class ConfigStore {
       },
       retention: { ...this.cfg.retention },
       noiseFilter: { ...this.cfg.noiseFilter },
+      threatIntel: {
+        hasAbuseIpdbKey: !!this.cfg.threatIntel.abuseIpdbKey,
+      },
     };
   }
 
