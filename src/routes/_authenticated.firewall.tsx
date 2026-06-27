@@ -8,6 +8,7 @@ import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
 import { useFirewall, useFirewallByMinute } from "@/lib/live";
 import { deauthReasonMap, geoLookup } from "@/lib/mock-extra";
+import { describeFirewallEvent, shortEventLabel } from "@/lib/firewall-format";
 import { formatTime, relativeTime } from "@/lib/format";
 import { exportNdjson } from "@/lib/export";
 import { cn } from "@/lib/utils";
