@@ -77,8 +77,12 @@ function GeoCell({ ip, info }: { ip: string; info?: IpInfo }) {
 type ActionFilter = "all" | "allow" | "block" | "drop" | "failure" | "success";
 type ThreatFilter = "all" | "high" | "medium" | "low" | "clean" | "unknown";
 
+const LIMITS = [500, 1000, 2000, 5000, 10000] as const;
+type LimitOpt = typeof LIMITS[number];
+
 function FirewallPage() {
-  const { data: allEvents, isLive } = useFirewall();
+  const [limit, setLimit] = useState<LimitOpt>(1000);
+  const { data: allEvents, isLive } = useFirewall({ kind: "firewall", limit });
   const { range } = useUI();
   const { data: firewallByMinute, label: bucketLabel } = useFirewallByMinute(range);
   const [q, setQ] = useState("");
