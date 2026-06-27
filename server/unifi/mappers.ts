@@ -317,6 +317,7 @@ export function mapSsids(rawDevices: any) {
   const byName = new Map<string, {
     name: string; band: "2.4" | "5" | "6" | "dual";
     clients: number; rx: number; tx: number; retries: number;
+    _txPackets: number; _txRetries: number;
   }>();
   for (const d of devs) {
     const vaps: Raw[] = d.vap_table ?? [];
@@ -325,17 +326,23 @@ export function mapSsids(rawDevices: any) {
       if (!name) continue;
       const radio = str(v.radio);
       const band: "2.4" | "5" | "6" | "dual" = radio === "ng" ? "2.4" : radio === "na" ? "5" : radio === "6e" ? "6" : "dual";
-      const cur = byName.get(name) ?? { name, band, clients: 0, rx: 0, tx: 0, retries: 0 };
+      const cur = byName.get(name) ?? { name, band, clients: 0, rx: 0, tx: 0, retries: 0, _txPackets: 0, _txRetries: 0 };
       cur.clients += num(v.num_sta);
       cur.rx += num(v.rx_bytes);
       cur.tx += num(v.tx_bytes);
-      cur.retries = Math.max(cur.retries, num(v.tx_retries));
+      cur._txPackets += num(v.tx_packets);
+      cur._txRetries += num(v.tx_retries);
       // If we see the same SSID on multiple bands, mark dual
       if (cur.band !== band) cur.band = "dual";
       byName.set(name, cur);
     }
   }
-  return Array.from(byName.values());
+  // Compute retry percentage = tx_retries / (tx_packets + tx_retries) * 100
+  for (const s of byName.values()) {
+    const denom = s._txPackets + s._txRetries;
+    s.retries = denom > 0 ? Math.round((s._txRetries / denom) * 1000) / 10 : 0;
+  }
+  return Array.from(byName.values()).map(({ _txPackets, _txRetries, ...rest }) => rest);
 }
 
 // ---- WAN / site health ----
