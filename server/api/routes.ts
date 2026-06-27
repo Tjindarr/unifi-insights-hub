@@ -142,6 +142,7 @@ export async function registerApi(
         maxDbMb: number; intervalMin: number; vacuumHours: number;
       }>;
       noiseFilter?: Partial<{ enabled: boolean; action: "drop" | "downgrade"; patterns: string[] }>;
+      threatIntel?: Partial<{ abuseIpdbKey: string }>;
     };
   }>("/api/settings", async (req, reply) => {
     const body = req.body ?? {};
@@ -177,7 +178,17 @@ export async function registerApi(
         : [];
       patch.noiseFilter = nf;
     }
-    if (!patch.unifi && !patch.retention && !patch.noiseFilter) {
+    if (body.threatIntel) {
+      // Empty string clears the key; undefined means "leave saved value".
+      const incoming = body.threatIntel.abuseIpdbKey;
+      patch.threatIntel = {
+        abuseIpdbKey:
+          incoming === undefined
+            ? current.threatIntel.abuseIpdbKey
+            : String(incoming).trim().slice(0, 256),
+      };
+    }
+    if (!patch.unifi && !patch.retention && !patch.noiseFilter && !patch.threatIntel) {
       return reply.code(400).send({ ok: false, error: "no changes" });
     }
     config.update(patch);
@@ -490,7 +501,10 @@ export async function registerApi(
       }
     }
 
-    const abuseKey = process.env.ABUSEIPDB_KEY || process.env.ABUSEIPDB_API_KEY;
+    const abuseKey =
+      config.get().threatIntel.abuseIpdbKey ||
+      process.env.ABUSEIPDB_KEY ||
+      process.env.ABUSEIPDB_API_KEY;
     if (abuseKey && needAbuse.length) {
       await Promise.all(needAbuse.slice(0, 25).map(async (ip) => {
         try {
