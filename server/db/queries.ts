@@ -317,15 +317,36 @@ export function recentFirewall(
     params.like = `%${opts.q}%`;
   }
   if (opts.since != null) {
-    where.push("time >= @since");
+    where.push("f.time >= @since");
     params.since = opts.since;
   }
+
+  // When a free-text search is present, hit the FTS5 mirror instead of
+  // LIKE %q% which was forcing a full-table scan. Falls back to LIKE only
+  // for very short queries the FTS tokenizer would reject.
+  if (opts.q) {
+    const ftsQuery = toFtsQuery(opts.q);
+    if (ftsQuery) {
+      params.q = ftsQuery;
+      const sql = `
+        SELECT f.* FROM firewall_events_fts x
+        JOIN firewall_events f ON f.id = x.rowid
+        WHERE x.firewall_events_fts MATCH @q
+        ${where.length ? "AND " + where.join(" AND ").replace(/\bf\./g, "f.") : ""}
+        ORDER BY f.time DESC LIMIT ${limit}`;
+      return db.prepare(sql).all(params);
+    }
+    where.push("(f.rule LIKE @like OR f.client_mac LIKE @like OR f.vap LIKE @like OR f.raw_json LIKE @like)");
+    params.like = `%${opts.q}%`;
+  }
+
   const sql = `
-    SELECT * FROM firewall_events
+    SELECT f.* FROM firewall_events f
     ${where.length ? "WHERE " + where.join(" AND ") : ""}
-    ORDER BY time DESC LIMIT ${limit}`;
+    ORDER BY f.time DESC LIMIT ${limit}`;
   return db.prepare(sql).all(params);
 }
+
 
 // Aggregate firewall events into time buckets — used by the chart so the
 // "events per minute" view spans the entire selected window, regardless of
