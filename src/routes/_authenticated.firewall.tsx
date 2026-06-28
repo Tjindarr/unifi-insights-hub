@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ChevronRight, Download, Globe, Pause, Play, Search, ShieldAlert } from "lucide-react";
+import { Pause, Play, Search, ShieldAlert } from "lucide-react";
 
 import { PageHeader, SeverityDot } from "@/components/app-shell";
 import { DemoBadge } from "@/components/demo-badge";
@@ -95,7 +95,6 @@ function FirewallPage() {
   const [action, setAction] = useState<ActionFilter>("all");
   const [threat, setThreat] = useState<ThreatFilter>("all");
   const [view, setView] = useState<View>("list");
-  const [internetOnly, setInternetOnly] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   // Pre-filter: this page only deals with iptables / firewall-rule hits.
@@ -118,8 +117,7 @@ function FirewallPage() {
       if (action === "block") return a === "drop" || a === "deny" || a === "block";
       return a === action;
     };
-    return tagged.filter(({ event: e, ext }) => {
-      if (internetOnly && !ext) return false;
+    return tagged.filter(({ event: e }) => {
       if (!actionMatch(e.action)) return false;
       if (proto !== "all" && (e.proto ?? "").toLowerCase() !== proto) return false;
       if (sq && !(e.srcIp ?? "").toLowerCase().includes(sq)) return false;
@@ -136,7 +134,7 @@ function FirewallPage() {
         ext?.includes(ql)
       );
     });
-  }, [tagged, q, srcQ, dstQ, portQ, proto, action, internetOnly]);
+  }, [tagged, q, srcQ, dstQ, portQ, proto, action]);
 
 
   // Unique external IPs in the prelim set — used to batch GeoIP/threat lookups.
@@ -216,23 +214,6 @@ function FirewallPage() {
             >
               {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
               {paused ? "Paused" : "Live"}
-            </button>
-            <button onClick={() => exportNdjson("firewall", rows)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60">
-              <Download className="h-3.5 w-3.5" />NDJSON
-            </button>
-
-            <button
-              onClick={() => setInternetOnly((v) => !v)}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs transition-colors",
-                internetOnly
-                  ? "border-chart-2/40 bg-chart-2/15 text-chart-2"
-                  : "border-border text-muted-foreground hover:bg-secondary/60",
-              )}
-              title="Show only events that touch a public IP"
-            >
-              <Globe className="h-3.5 w-3.5" />
-              Internet only
             </button>
             <div className="flex rounded-md border border-border overflow-hidden text-xs">
               {(["list", "rule", "mac", "src"] as const).map((v) => (
