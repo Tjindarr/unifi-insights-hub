@@ -8,6 +8,7 @@ import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
 import type { Severity, SyslogEntry } from "@/lib/mock-data";
 import { useSyslog, useSyslogByMinute } from "@/lib/live";
+import { useUI } from "@/lib/ui-store";
 import { formatDateTime, formatTime } from "@/lib/format";
 import { exportNdjson } from "@/lib/export";
 import { cn } from "@/lib/utils";
