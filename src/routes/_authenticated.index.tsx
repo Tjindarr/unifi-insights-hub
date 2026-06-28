@@ -416,7 +416,7 @@ function DonutCard({
           <div className="h-36">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={data} dataKey="value" nameKey="name" innerRadius={36} outerRadius={60} paddingAngle={2} stroke="none">
+                <Pie data={data} dataKey="value" nameKey="name" innerRadius={36} outerRadius={60} paddingAngle={2} stroke="none" isAnimationActive={false}>
                   {data.map((e, i) => <Cell key={i} fill={e.color} />)}
                 </Pie>
                 <Tooltip contentStyle={donutTooltipStyle} itemStyle={{ color: "var(--color-foreground)" }} labelStyle={{ color: "var(--color-foreground)" }} />
