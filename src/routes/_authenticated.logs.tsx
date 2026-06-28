@@ -66,21 +66,55 @@ function LogsPage() {
   }, [range]);
 
   const [limit, setLimit] = useState(PAGE_SIZE);
-  // Reset paging when the time window changes.
-  useEffect(() => { setLimit(PAGE_SIZE); }, [range]);
+  // Custom date range: when both ends are set, they override the global range.
+  const [customFrom, setCustomFrom] = useState<string>("");
+  const [customTo, setCustomTo] = useState<string>("");
+  const customActive = !!(customFrom && customTo);
+  // Reset paging when the window changes.
+  useEffect(() => { setLimit(PAGE_SIZE); }, [range, customFrom, customTo]);
 
   // Snap `since` to the bucket boundary so query keys stay stable between renders.
-  const sinceMs = useMemo(() => {
+  const { sinceMs, untilMs } = useMemo(() => {
+    if (customActive) {
+      const f = new Date(customFrom).getTime();
+      const t = new Date(customTo).getTime();
+      if (Number.isFinite(f) && Number.isFinite(t) && f < t) {
+        return { sinceMs: f, untilMs: t };
+      }
+    }
     const windowMs = rangeMinutes * 60_000;
     const bucket = 30_000;
-    return Math.floor((Date.now() - windowMs) / bucket) * bucket;
-  }, [rangeMinutes, /* re-evaluate at most once per minute */ Math.floor(Date.now() / 60_000)]);
+    return {
+      sinceMs: Math.floor((Date.now() - windowMs) / bucket) * bucket,
+      untilMs: undefined as number | undefined,
+    };
+  }, [rangeMinutes, customActive, customFrom, customTo, Math.floor(Date.now() / 60_000)]);
 
-  const { data: syslog, isLive } = useSyslog({ since: sinceMs, limit });
+
   const [q, setQ] = useState("");
   const [sev, setSev] = useState<Set<Severity>>(new Set(SEVERITIES));
   const [host, setHost] = useState<string | "all">("all");
   const [saved, setSaved] = useState<string[]>([]);
+
+  // Pass the free-text portion of the query to the server so the FTS5 index
+  // narrows the result set before we apply key:value filters client-side.
+  // Bare terms like "172.16" or "deny" hit the index; key:value tokens are
+  // still parsed locally.
+  const serverQ = useMemo(() => {
+    return q
+      .split(/\s+/)
+      .filter((t) => t && !/^(host|sev|app|msg):/i.test(t))
+      .join(" ")
+      .trim();
+  }, [q]);
+
+  const { data: syslog, isLive } = useSyslog({
+    since: sinceMs,
+    until: untilMs,
+    q: serverQ || undefined,
+    limit,
+  });
+
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -120,10 +154,36 @@ function LogsPage() {
     <div>
       <PageHeader
         title="Logs"
-        description={`${rows.length} of ${syslog.length} loaded · window ${range} · syntax: host:U7ProXG sev:warn app:stahtd term`}
+        description={`${rows.length} of ${syslog.length} loaded · window ${customActive ? "custom" : range} · syntax: host:U7ProXG sev:warn app:stahtd term`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <DemoBadge isLive={isLive} />
+
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <span className="px-1">From</span>
+              <Input
+                type="datetime-local"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="h-8 w-[180px] font-mono text-xs"
+              />
+              <span className="px-1">To</span>
+              <Input
+                type="datetime-local"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="h-8 w-[180px] font-mono text-xs"
+              />
+              {customActive && (
+                <button
+                  onClick={() => { setCustomFrom(""); setCustomTo(""); }}
+                  className="px-2 py-1 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60"
+                  title="Clear custom range (use global time range)"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
 
             <button onClick={() => exportNdjson("logs", rows)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60">
               <Download className="h-3.5 w-3.5" />NDJSON
@@ -133,11 +193,12 @@ function LogsPage() {
             </button>
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder='host:U7ProXG sev:warn term' value={q} onChange={(e) => setQ(e.target.value)} className="pl-7 h-8 w-96 font-mono" />
+              <Input placeholder='dst:172.16 host:U7ProXG sev:warn' value={q} onChange={(e) => setQ(e.target.value)} className="pl-7 h-8 w-96 font-mono" />
             </div>
           </div>
         }
       />
+
 
       <div className="px-6 pt-4">
         <div className="rounded-lg border border-border bg-card">

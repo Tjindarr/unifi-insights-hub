@@ -401,13 +401,14 @@ function normSyslog(rows: SysRow[]): SyslogEntry[] {
 }
 
 export function useSyslog(
-  params: { q?: string; host?: string; severity?: string; since?: number; limit?: number; paused?: boolean } = {},
+  params: { q?: string; host?: string; severity?: string; since?: number; until?: number; limit?: number; paused?: boolean } = {},
 ): Live<SyslogEntry[]> {
   const qs = new URLSearchParams();
   if (params.q) qs.set("q", params.q);
   if (params.host) qs.set("host", params.host);
   if (params.severity) qs.set("severity", params.severity);
   if (params.since != null) qs.set("since", String(params.since));
+  if (params.until != null) qs.set("until", String(params.until));
   qs.set("limit", String(params.limit ?? 500));
   const key = `syslog?${qs.toString()}`;
   const { data, isLive, loading } = useLive<SysRow[] | SyslogEntry[]>(
@@ -419,6 +420,7 @@ export function useSyslog(
   const normalized = isLive ? normSyslog(data as SysRow[]) : (data as SyslogEntry[]);
   return { data: normalized, isLive, loading };
 }
+
 
 // Syslog severity buckets driven only by the global time range — same
 // pattern as useFirewallByMinute, so the chart is independent of the table's

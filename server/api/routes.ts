@@ -499,33 +499,36 @@ export async function registerApi(
 
   // ---- logs (always real syslog DB; demo mode handled on client) ----
   app.get<{
-    Querystring: { q?: string; host?: string; severity?: string; limit?: string; since?: string };
+    Querystring: { q?: string; host?: string; severity?: string; limit?: string; since?: string; until?: string };
   }>("/api/logs", async (req) => {
-    const { q, host, severity, limit, since } = req.query;
+    const { q, host, severity, limit, since, until } = req.query;
     return recentSyslog(db, {
       q: q || undefined,
       host: host || undefined,
       severity: severity ? severity.split(",") : undefined,
       limit: limit ? Number(limit) : 500,
       since: since ? Number(since) : undefined,
+      until: until ? Number(until) : undefined,
     });
   });
 
 
   // ---- firewall ----
   app.get<{
-    Querystring: { q?: string; action?: string; mac?: string; limit?: string; since?: string; kind?: string };
+    Querystring: { q?: string; action?: string; mac?: string; limit?: string; since?: string; until?: string; kind?: string };
   }>("/api/firewall", async (req) => {
-    const { q, action, mac, limit, since, kind } = req.query;
+    const { q, action, mac, limit, since, until, kind } = req.query;
     return recentFirewall(db, {
       q: q || undefined,
       action: action || undefined,
       clientMac: mac || undefined,
       limit: limit ? Number(limit) : 500,
       since: since ? Number(since) : undefined,
+      until: until ? Number(until) : undefined,
       kind: kind === "internal" || kind === "firewall" ? kind : undefined,
     });
   });
+
 
   // Aggregated time buckets for the firewall "events per minute" chart.
   app.get<{
