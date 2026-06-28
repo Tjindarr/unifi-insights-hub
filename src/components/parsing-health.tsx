@@ -50,6 +50,23 @@ export function ParsingHealth({ windowMin = 60, paused = false }: { windowMin?: 
     [data.buckets],
   );
 
+  // Anchor the X-axis to the requested window so the chart always spans the
+  // full `windowMin` even when only a few recent buckets have non-zero values.
+  // Without this the category-scale axis collapses to the buckets that
+  // actually contain data and the widget looks like it only covers a few
+  // minutes.
+  const { xDomain, xTicks } = useMemo(() => {
+    const bucketMs = 60_000;
+    const now = Date.now();
+    const end = Math.floor(now / bucketMs) * bucketMs;
+    const start = end - (windowMin - 1) * bucketMs;
+    const step = Math.max(1, Math.round(windowMin / 6)) * bucketMs;
+    const ticks: number[] = [];
+    for (let t = start; t <= end; t += step) ticks.push(t);
+    if (ticks[ticks.length - 1] !== end) ticks.push(end);
+    return { xDomain: [start, end + bucketMs] as [number, number], xTicks: ticks };
+  }, [windowMin, data.buckets]);
+
   const w = data.windowTotals;
 
   return (
