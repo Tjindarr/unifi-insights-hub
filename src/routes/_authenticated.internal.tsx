@@ -76,11 +76,79 @@ type LimitOpt = typeof LIMITS[number];
 
 function InternalPage() {
   const [limit, setLimit] = useState<LimitOpt>(1000);
-  const { data: events, isLive } = useFirewall({ kind: "internal", limit });
-  const { range } = useUI();
+  const { range, setRange } = useUI();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  // Custom From / To timespan — when both set and From < To, overrides the
+  // global time range and bounds the internal-events query exactly to that window.
+  const [customFrom, setCustomFrom] = useState<string>("");
+  const [customTo, setCustomTo] = useState<string>("");
+  const [rangeError, setRangeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(CUSTOM_RANGE_KEY);
+      if (raw) {
+        const { from, to } = JSON.parse(raw) as { from?: string; to?: string };
+        if (from) setCustomFrom(from);
+        if (to) setCustomTo(to);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const customActive = useMemo(() => {
+    if (!customFrom || !customTo) return false;
+    const f = new Date(customFrom).getTime();
+    const t = new Date(customTo).getTime();
+    return Number.isFinite(f) && Number.isFinite(t) && f < t;
+  }, [customFrom, customTo]);
+
+  useEffect(() => {
+    setLimit(1000);
+  }, [range, customFrom, customTo]);
+
+  const { sinceMs, untilMs, windowMs } = useMemo(() => {
+    if (customActive) {
+      const f = new Date(customFrom).getTime();
+      const t = new Date(customTo).getTime();
+      return { sinceMs: f, untilMs: t, windowMs: t - f };
+    }
+    const w = rangeToMinutes(range) * 60_000;
+    const snapped = Math.floor((Date.now() - w) / 30_000) * 30_000;
+    return { sinceMs: snapped, untilMs: undefined as number | undefined, windowMs: w };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customActive, customFrom, customTo, range, Math.floor(Date.now() / 30_000)]);
+
+  function applyCustom() {
+    if (!customFrom || !customTo) { setRangeError("Pick both From and To."); return; }
+    const f = new Date(customFrom).getTime();
+    const t = new Date(customTo).getTime();
+    if (!Number.isFinite(f) || !Number.isFinite(t)) { setRangeError("Invalid date."); return; }
+    if (f >= t) { setRangeError("End must be after start."); return; }
+    setRangeError(null);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(CUSTOM_RANGE_KEY, JSON.stringify({ from: customFrom, to: customTo }));
+    }
+  }
+
+  function clearCustom() {
+    setCustomFrom("");
+    setCustomTo("");
+    setRangeError(null);
+    if (typeof window !== "undefined") localStorage.removeItem(CUSTOM_RANGE_KEY);
+  }
+
+  const { data: events, isLive } = useFirewall({
+    kind: "internal",
+    limit,
+    since: sinceMs,
+    until: untilMs,
+  });
 
   const internal = useMemo(() => events.filter(isInternalEvent), [events]);
 
@@ -118,7 +186,12 @@ function InternalPage() {
     internalCategory,
     CHART_SERIES.map((s) => s.key),
     range,
+    {
+      sinceMs: customActive ? sinceMs : undefined,
+      untilMs: customActive ? untilMs : undefined,
+    },
   );
+
   const windowTotal = useMemo(
     () => byBucket.reduce((s, r) => s + CHART_SERIES.reduce((a, c) => a + (Number(r[c.key]) || 0), 0), 0),
     [byBucket],
