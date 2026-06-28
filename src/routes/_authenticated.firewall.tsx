@@ -280,7 +280,7 @@ function FirewallPage() {
     <div>
       <PageHeader
         title="Firewall"
-        description={`${rows.length} events · ${stats.failures} failures · ${stats.uniqueClients} clients · ${stats.external} internet`}
+        description={`${rows.length} events · ${stats.failures} failures · ${stats.uniqueClients} clients · ${stats.external} internet · window ${customActive ? "custom" : range} (${formatWindow(windowMs)})`}
         actions={
           <div className="flex items-center gap-2 flex-wrap justify-end max-w-[760px]">
             <DemoBadge isLive={isLive} />
