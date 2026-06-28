@@ -120,7 +120,7 @@ function LogsPage() {
     <div>
       <PageHeader
         title="Logs"
-        description={`${rows.length} of ${syslog.length} · syntax: host:U7ProXG sev:warn app:stahtd term`}
+        description={`${rows.length} of ${syslog.length} loaded · window ${range} · syntax: host:U7ProXG sev:warn app:stahtd term`}
         actions={
           <div className="flex items-center gap-2">
             <DemoBadge isLive={isLive} />
