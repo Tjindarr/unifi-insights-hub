@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ChevronRight, Download, Globe, Search, ShieldAlert } from "lucide-react";
+import { ChevronRight, Download, Globe, Pause, Play, Search, ShieldAlert } from "lucide-react";
 
 import { PageHeader, SeverityDot } from "@/components/app-shell";
 import { DemoBadge } from "@/components/demo-badge";
