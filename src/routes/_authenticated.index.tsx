@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer,
-  Tooltip, XAxis, YAxis, Legend,
+  Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
   Activity, AlertTriangle, Cable, Flame, Radio, ShieldAlert, Wifi,
