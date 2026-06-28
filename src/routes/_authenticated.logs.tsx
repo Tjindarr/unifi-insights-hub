@@ -211,6 +211,33 @@ function LogsPage() {
             ))}
             {rows.length === 0 && <li className="px-4 py-12 text-center text-sm text-muted-foreground">No log entries match the current filters.</li>}
           </ul>
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-border text-xs text-muted-foreground">
+            <span>
+              Showing {rows.length.toLocaleString()} of {syslog.length.toLocaleString()} loaded
+              {syslog.length >= limit && isLive ? ` · loaded ${limit.toLocaleString()} of last ${range}` : ""}
+            </span>
+            <div className="flex items-center gap-2">
+              {canLoadMore && (
+                <button
+                  onClick={() => setLimit((l) => Math.min(l + PAGE_SIZE, MAX_LIMIT))}
+                  className="px-2.5 py-1.5 rounded-md border border-border text-xs text-foreground hover:bg-secondary/60"
+                >
+                  Load {PAGE_SIZE} more
+                </button>
+              )}
+              {limit > PAGE_SIZE && (
+                <button
+                  onClick={() => setLimit(PAGE_SIZE)}
+                  className="px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60"
+                >
+                  Reset
+                </button>
+              )}
+              {!canLoadMore && limit >= MAX_LIMIT && (
+                <span>Max {MAX_LIMIT.toLocaleString()} rows · narrow the time range or use search.</span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
