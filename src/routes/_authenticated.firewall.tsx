@@ -82,7 +82,9 @@ type LimitOpt = typeof LIMITS[number];
 
 function FirewallPage() {
   const [limit, setLimit] = useState<LimitOpt>(1000);
-  const { data: allEvents, isLive } = useFirewall({ kind: "firewall", limit });
+  const [paused, setPaused] = useState(false);
+  const { data: allEvents, isLive } = useFirewall({ kind: "firewall", limit, paused });
+
   const { range } = useUI();
   const { data: firewallByMinute, label: bucketLabel } = useFirewallByMinute(range);
   const [q, setQ] = useState("");
