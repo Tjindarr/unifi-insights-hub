@@ -1,34 +1,46 @@
-## What I understand
+## Goal
+On `/firewall`, let the user search the firewall log for an exact timespan — e.g. `2026-05-01 12:45 → 2026-05-01 13:45` — not just "last 1h / 24h". Backend already supports it; the page just doesn't expose it.
 
-The events-per-minute chart should be based only on the global time picker in the top right:
+## What's already there
+- `recentFirewall` accepts `since` + `until` (ms) and `/api/firewall` exposes both.
+- `firewall_events_fts` makes filtered queries fast.
+- `useFirewall` only sends `since` and there's no UI to pick a window — the Firewall page currently shows "last N events" with no time bound at all.
 
-- If you select `15m`, the chart shows counts for the last 15 minutes.
-- If you select `1h`, the chart shows counts for the last hour.
-- If you select `24h`, the chart shows counts for the last 24 hours.
-- The table limit (`Last 500`, `Last 1000`, etc.) must only affect the log rows shown below the chart.
-- Changing the table limit must not change the chart at all.
+## Changes (frontend only)
 
-## Plan
+1. **`src/lib/live.ts` — `useFirewall`**
+   - Add `until?: number` to the options and append it to the query string.
+   - Add `since?: number` is already there; keep behaviour.
+   - When a custom window is active the caller will pass both bounds; query key already includes them via `qs.toString()`.
 
-1. **Trace both timeline data paths**
-   - Check the firewall page, internal page, `src/lib/live.ts`, and the server API route for bucket queries.
-   - Identify where the chart is still falling back to the currently displayed rows or sharing the table limit.
+2. **`src/routes/_authenticated.firewall.tsx` — Range toolbar**
+   - New state: `customFrom: string`, `customTo: string` (datetime-local strings), `customActive = !!(from && to && from < to)`.
+   - Persist to `localStorage("firewall-custom-range")` so reloads keep it.
+   - Derive `sinceMs` / `untilMs`:
+     - If custom is active → use those exact ms bounds.
+     - Else → fall back to the global `useUI().range` window (compute `sinceMs` from `rangeMinutes`, leave `untilMs` undefined for "up to now").
+   - Pass `since` + `until` into `useFirewall({ kind: "firewall", limit, paused, since, until })`.
+   - Pass the same `since`/`rangeMs` into `useFirewallByMinute` so the chart matches the table (extend that hook with optional `since`/`rangeMs` overrides — endpoint already accepts both).
 
-2. **Make chart queries independent**
-   - Ensure firewall and internal charts call a dedicated bucket API using only:
-     - selected global time range
-     - bucket size
-     - event kind: `firewall` or `internal`
-   - Remove any fallback that buckets the currently displayed table rows for these charts.
+3. **UI placement**
+   - Add a dedicated **Time range** row directly under `PageHeader`, above the events chart, so it's not lost in the wrapped header toolbar.
+   - Layout:
+     - Quick presets: `15m · 1h · 24h · 7d · 30d` (set global `useUI` range, clear custom).
+     - `From` + `To` shadcn date+time pickers (`Popover` + `Calendar` with `pointer-events-auto` + `<input type="time">` inside the popover) — falls back gracefully to `<input type="datetime-local">` if simpler.
+     - `Apply` button (disabled until both valid and From < To).
+     - `Clear` button (only shown when custom active) → resets to global range.
+     - Active-window readout: `2026-05-01 12:45 → 2026-05-01 13:45 (1h, 1,234 events)`.
+   - Inline validation message when From ≥ To.
 
-3. **Keep table queries separate**
-   - Keep `Last 500 / 1000 / ...` only on the log list query.
-   - Do not pass that limit into chart hooks or bucket endpoints.
+4. **Pagination / limit interplay**
+   - When the window changes, reset `limit` to its default (1000). Existing limit dropdown keeps working inside the custom window.
 
-4. **Fix server-side bucket windowing if needed**
-   - Make the bucket SQL use the selected range window consistently.
-   - Preserve the existing clock-skew handling, but ensure it still spans the selected time range rather than the last N fetched rows.
+5. **Header description**
+   - Update the subtitle to include the active window so it's obvious the table is scoped to it.
 
-5. **Verify behavior**
-   - Confirm that changing `Last 500` to `Last 1000` does not change chart totals/bars.
-   - Confirm that changing the top-right time range does change the chart window.
+## Files touched
+- `src/lib/live.ts` (add `until` to `useFirewall`)
+- `src/routes/_authenticated.firewall.tsx` (state, toolbar, wiring)
+- Optional: extract the toolbar into `src/components/firewall-range-toolbar.tsx` if it grows past ~80 lines.
+
+No backend, schema, or query changes — the timespan capability already exists server-side; this exposes it on `/firewall`.

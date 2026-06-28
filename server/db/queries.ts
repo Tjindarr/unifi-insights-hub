@@ -361,9 +361,9 @@ export function recentFirewall(
 // how many rows the table fetches.
 export function firewallBuckets(
   db: Database.Database,
-  opts: { since?: number; rangeMs?: number; bucketMs: number; kind?: "internal" | "firewall" },
+  opts: { since?: number; until?: number; rangeMs?: number; bucketMs: number; kind?: "internal" | "firewall" },
 ): BucketRow[] {
-  const cacheKey = `actions:${opts.kind ?? "all"}:${opts.bucketMs}:${opts.rangeMs ?? ""}:${bucketCacheVersion}`;
+  const cacheKey = `actions:${opts.kind ?? "all"}:${opts.bucketMs}:${opts.rangeMs ?? ""}:${opts.since ?? ""}:${opts.until ?? ""}:${bucketCacheVersion}`;
   const cached = bucketCache.get(cacheKey) as { at: number; rows: BucketRow[] } | undefined;
   const now = Date.now();
   if (cached && now - cached.at < BUCKET_CACHE_TTL_MS) return cached.rows;
@@ -382,11 +382,20 @@ export function firewallBuckets(
     return [];
   }
 
-  const wallSince = opts.since ?? now - (opts.rangeMs ?? 60 * 60_000);
-  const rangeMs = opts.rangeMs ?? Math.max(opts.bucketMs, now - wallSince);
-  const end = Math.max(now, newest);
-  params.since = Math.floor((end - rangeMs) / opts.bucketMs) * opts.bucketMs;
-  where.push("time >= @since");
+  // Bounded window: when both `since` and `until` are provided, honour them
+  // exactly (custom time-range picker on the Firewall page). Otherwise fall
+  // back to the legacy "last rangeMs anchored to newest/now" behaviour.
+  if (opts.since != null && opts.until != null && opts.until > opts.since) {
+    params.since = Math.floor(opts.since / opts.bucketMs) * opts.bucketMs;
+    params.until = opts.until;
+    where.push("time >= @since AND time <= @until");
+  } else {
+    const wallSince = opts.since ?? now - (opts.rangeMs ?? 60 * 60_000);
+    const rangeMs = opts.rangeMs ?? Math.max(opts.bucketMs, now - wallSince);
+    const end = Math.max(now, newest);
+    params.since = Math.floor((end - rangeMs) / opts.bucketMs) * opts.bucketMs;
+    where.push("time >= @since");
+  }
 
   const rows = db.prepare(`
     SELECT

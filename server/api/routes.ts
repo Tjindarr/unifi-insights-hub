@@ -532,13 +532,14 @@ export async function registerApi(
 
   // Aggregated time buckets for the firewall "events per minute" chart.
   app.get<{
-    Querystring: { since?: string; rangeMs?: string; bucketMs?: string; kind?: string };
+    Querystring: { since?: string; until?: string; rangeMs?: string; bucketMs?: string; kind?: string };
   }>("/api/firewall/buckets", async (req) => {
     const since = req.query.since ? Number(req.query.since) : Date.now() - 60 * 60_000;
+    const until = req.query.until ? Number(req.query.until) : undefined;
     const rangeMs = req.query.rangeMs ? Number(req.query.rangeMs) : undefined;
     const bucketMs = req.query.bucketMs ? Number(req.query.bucketMs) : 60_000;
     const kind = req.query.kind === "internal" || req.query.kind === "firewall" ? req.query.kind : undefined;
-    return firewallBuckets(db, { since, rangeMs, bucketMs, kind });
+    return firewallBuckets(db, { since, until, rangeMs, bucketMs, kind });
   });
 
   // Aggregated category buckets for the Internal events chart. This endpoint is

@@ -194,13 +194,14 @@ function normFw(rows: FwRow[], macToName: Map<string, string>): FirewallEvent[] 
   });
 }
 
-export function useFirewall(opts: { kind?: "internal" | "firewall"; limit?: number; since?: number; paused?: boolean } = {}): Live<FirewallEvent[]> {
+export function useFirewall(opts: { kind?: "internal" | "firewall"; limit?: number; since?: number; until?: number; paused?: boolean } = {}): Live<FirewallEvent[]> {
   const { data: clients } = useClients();
   const limit = opts.limit ?? 500;
   const qs = new URLSearchParams();
   qs.set("limit", String(limit));
   if (opts.kind) qs.set("kind", opts.kind);
   if (opts.since != null) qs.set("since", String(opts.since));
+  if (opts.until != null) qs.set("until", String(opts.until));
   const key = `firewall?${qs.toString()}`;
   const { data, isLive, loading } = useLive<FwRow[] | FirewallEvent[]>(
     key,
@@ -282,16 +283,30 @@ function bucketEvents<T extends string>(
 // Derived: firewall events bucketed for the active time range (success vs failure).
 // Backed by a dedicated SQL aggregation endpoint so the chart spans the whole
 // window even when the table only fetched the most recent 500 rows.
-export function useFirewallByMinute(range: TimeRangeKey = "1h", opts: { paused?: boolean } = {}) {
-  const spec = bucketSpecForRange(range);
+export function useFirewallByMinute(
+  range: TimeRangeKey = "1h",
+  opts: { paused?: boolean; sinceMs?: number; untilMs?: number } = {},
+) {
   type BucketRow = { t: number; success: number; failure: number };
+  const custom = opts.sinceMs != null && opts.untilMs != null && opts.untilMs > opts.sinceMs;
+  const spec = custom
+    ? pickBucketSpec(opts.untilMs! - opts.sinceMs!)
+    : bucketSpecForRange(range);
+  const sinceKey = custom ? opts.sinceMs! : "default";
+  const untilKey = custom ? opts.untilMs! : "now";
   const { data, isLive } = useLive<BucketRow[]>(
-    `firewall-buckets:${range}`,
+    `firewall-buckets:${range}:${sinceKey}:${untilKey}`,
     () => {
-      const sinceNow = Math.floor((Date.now() - spec.windowMs) / spec.bucketMs) * spec.bucketMs;
-      return getJson<BucketRow[]>(
-        `/api/firewall/buckets?kind=firewall&since=${sinceNow}&rangeMs=${spec.windowMs}&bucketMs=${spec.bucketMs}`,
-      );
+      const sinceNow = custom
+        ? Math.floor(opts.sinceMs! / spec.bucketMs) * spec.bucketMs
+        : Math.floor((Date.now() - spec.windowMs) / spec.bucketMs) * spec.bucketMs;
+      const qs = new URLSearchParams();
+      qs.set("kind", "firewall");
+      qs.set("since", String(sinceNow));
+      qs.set("rangeMs", String(spec.windowMs));
+      qs.set("bucketMs", String(spec.bucketMs));
+      if (custom) qs.set("until", String(opts.untilMs!));
+      return getJson<BucketRow[]>(`/api/firewall/buckets?${qs.toString()}`);
     },
     [],
     opts.paused ? false : 15_000,
@@ -303,9 +318,9 @@ export function useFirewallByMinute(range: TimeRangeKey = "1h", opts: { paused?:
   // of the browser clock, and without this the future buckets would be
   // silently dropped and the chart would render all zeros.
   const wallNow = Date.now();
-  let latest = wallNow;
+  let latest = custom ? opts.untilMs! : wallNow;
   for (const r of data) if (r.t > latest) latest = r.t + spec.bucketMs - 1;
-  const start = latest - spec.windowMs;
+  const start = custom ? opts.sinceMs! : latest - spec.windowMs;
   const first = Math.floor(start / spec.bucketMs) * spec.bucketMs;
   const rowByT = new Map<number, BucketRow>();
   for (const r of data) rowByT.set(r.t, r);
@@ -316,6 +331,17 @@ export function useFirewallByMinute(range: TimeRangeKey = "1h", opts: { paused?:
   }
   return { data: out, isLive: true, label: spec.label };
 }
+
+// Choose a sensible bucket size for an arbitrary window length.
+function pickBucketSpec(windowMs: number): { windowMs: number; bucketMs: number; label: string } {
+  const MIN = 60_000;
+  const HOUR = 60 * MIN;
+  if (windowMs <= 60 * MIN)         return { windowMs, bucketMs: MIN,            label: "per minute" };
+  if (windowMs <= 24 * HOUR)        return { windowMs, bucketMs: 15 * MIN,       label: "per 15 min" };
+  if (windowMs <= 7 * 24 * HOUR)    return { windowMs, bucketMs: HOUR,           label: "per hour" };
+  return                                   { windowMs, bucketMs: 6 * HOUR,       label: "per 6 hours" };
+}
+
 
 
 // Internal events bucketed for the active time range, by category.
