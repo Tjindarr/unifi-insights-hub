@@ -82,13 +82,102 @@ type ThreatFilter = "all" | "high" | "medium" | "low" | "clean" | "unknown";
 const LIMITS = [500, 1000, 2000, 5000, 10000] as const;
 type LimitOpt = typeof LIMITS[number];
 
+const CUSTOM_RANGE_KEY = "firewall-custom-range";
+
+function rangeToMinutes(r: TimeRangeKey): number {
+  return TIME_RANGES.find((x) => x.key === r)?.minutes ?? 60;
+}
+
+function formatWindow(ms: number): string {
+  const m = Math.round(ms / 60_000);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  if (h < 24) return rem ? `${h}h ${rem}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  const remH = h % 24;
+  return remH ? `${d}d ${remH}h` : `${d}d`;
+}
+
 function FirewallPage() {
   const [limit, setLimit] = useState<LimitOpt>(1000);
   const [paused, setPaused] = useState(false);
-  const { data: allEvents, isLive } = useFirewall({ kind: "firewall", limit, paused });
+  const { range, setRange } = useUI();
 
-  const { range } = useUI();
-  const { data: firewallByMinute, label: bucketLabel } = useFirewallByMinute(range);
+  // Custom From / To timespan — when both set and From < To, overrides the
+  // global time range and bounds the firewall query exactly to that window.
+  const [customFrom, setCustomFrom] = useState<string>("");
+  const [customTo, setCustomTo] = useState<string>("");
+  const [rangeError, setRangeError] = useState<string | null>(null);
+
+  // Restore last custom range from localStorage.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(CUSTOM_RANGE_KEY);
+      if (raw) {
+        const { from, to } = JSON.parse(raw) as { from?: string; to?: string };
+        if (from) setCustomFrom(from);
+        if (to) setCustomTo(to);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const customActive = useMemo(() => {
+    if (!customFrom || !customTo) return false;
+    const f = new Date(customFrom).getTime();
+    const t = new Date(customTo).getTime();
+    return Number.isFinite(f) && Number.isFinite(t) && f < t;
+  }, [customFrom, customTo]);
+
+  // Reset row limit when the window changes so we don't paginate inside stale data.
+  useEffect(() => { setLimit(1000); }, [range, customFrom, customTo]);
+
+  const { sinceMs, untilMs, windowMs } = useMemo(() => {
+    if (customActive) {
+      const f = new Date(customFrom).getTime();
+      const t = new Date(customTo).getTime();
+      return { sinceMs: f, untilMs: t, windowMs: t - f };
+    }
+    const w = rangeToMinutes(range) * 60_000;
+    // Snap to a 30s grid so the query key is stable across renders.
+    const snapped = Math.floor((Date.now() - w) / 30_000) * 30_000;
+    return { sinceMs: snapped, untilMs: undefined as number | undefined, windowMs: w };
+  }, [customActive, customFrom, customTo, range, Math.floor(Date.now() / 30_000)]);
+
+  function applyCustom() {
+    if (!customFrom || !customTo) { setRangeError("Pick both From and To."); return; }
+    const f = new Date(customFrom).getTime();
+    const t = new Date(customTo).getTime();
+    if (!Number.isFinite(f) || !Number.isFinite(t)) { setRangeError("Invalid date."); return; }
+    if (f >= t) { setRangeError("End must be after start."); return; }
+    setRangeError(null);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(CUSTOM_RANGE_KEY, JSON.stringify({ from: customFrom, to: customTo }));
+    }
+  }
+
+  function clearCustom() {
+    setCustomFrom("");
+    setCustomTo("");
+    setRangeError(null);
+    if (typeof window !== "undefined") localStorage.removeItem(CUSTOM_RANGE_KEY);
+  }
+
+  const { data: allEvents, isLive } = useFirewall({
+    kind: "firewall",
+    limit,
+    paused,
+    since: sinceMs,
+    until: untilMs,
+  });
+
+  const { data: firewallByMinute, label: bucketLabel } = useFirewallByMinute(range, {
+    paused,
+    sinceMs: customActive ? sinceMs : undefined,
+    untilMs: customActive ? untilMs : undefined,
+  });
+
   const [q, setQ] = useState("");
   const [srcQ, setSrcQ] = useState("");
   const [dstQ, setDstQ] = useState("");
