@@ -351,7 +351,7 @@ function FirewallPage() {
                         <span className="text-muted-foreground">{relativeTime(e.time)}</span>
                       </div>
                       <div className="col-span-2">
-                        <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-medium", e.action === "failure" ? "bg-severity-error/15 text-severity-error" : "bg-chart-2/15 text-chart-2")}>{chip}</span>
+                        <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-medium", isBlockedAction(e.action) ? "bg-severity-error/15 text-severity-error" : "bg-chart-2/15 text-chart-2")}>{chip}</span>
                         <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">{e.rule}</div>
                       </div>
                       <div className="col-span-3 min-w-0">
