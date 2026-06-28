@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ChevronRight, Download, Globe, Search, ShieldAlert } from "lucide-react";
+import { ChevronRight, Download, Globe, Pause, Play, Search, ShieldAlert } from "lucide-react";
 
 import { PageHeader, SeverityDot } from "@/components/app-shell";
 import { DemoBadge } from "@/components/demo-badge";
@@ -82,7 +82,9 @@ type LimitOpt = typeof LIMITS[number];
 
 function FirewallPage() {
   const [limit, setLimit] = useState<LimitOpt>(1000);
-  const { data: allEvents, isLive } = useFirewall({ kind: "firewall", limit });
+  const [paused, setPaused] = useState(false);
+  const { data: allEvents, isLive } = useFirewall({ kind: "firewall", limit, paused });
+
   const { range } = useUI();
   const { data: firewallByMinute, label: bucketLabel } = useFirewallByMinute(range);
   const [q, setQ] = useState("");
@@ -202,9 +204,23 @@ function FirewallPage() {
               {LIMITS.map((n) => <option key={n} value={n}>Last {n.toLocaleString()}</option>)}
             </select>
 
+            <button
+              onClick={() => setPaused((v) => !v)}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs transition-colors",
+                paused
+                  ? "border-amber-500/40 bg-amber-500/15 text-amber-400"
+                  : "border-border text-muted-foreground hover:bg-secondary/60",
+              )}
+              title={paused ? "Auto-refresh is paused — click to resume" : "Pause auto-refresh while you search"}
+            >
+              {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+              {paused ? "Paused" : "Live"}
+            </button>
             <button onClick={() => exportNdjson("firewall", rows)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60">
               <Download className="h-3.5 w-3.5" />NDJSON
             </button>
+
             <button
               onClick={() => setInternetOnly((v) => !v)}
               className={cn(

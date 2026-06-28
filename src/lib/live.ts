@@ -60,19 +60,21 @@ function useLive<T>(
   key: string,
   fetcher: () => Promise<T | null>,
   fallback: T,
-  refetchMs = 10_000,
+  refetchMs: number | false = 10_000,
 ): Live<T> {
   const { data, isLoading } = useQuery({
     queryKey: [key],
     queryFn: fetcher,
-    refetchInterval: refetchMs,
-    staleTime: refetchMs / 2,
+    refetchInterval: refetchMs === false ? false : refetchMs,
+    refetchOnWindowFocus: refetchMs !== false,
+    staleTime: refetchMs === false ? Infinity : refetchMs / 2,
   });
   // Treat any non-null response as live, even if the array is empty — that
   // just means UniFi is connected but has nothing to report right now.
   const isLive = data != null;
   return { data: isLive ? (data as T) : fallback, isLive, loading: isLoading };
 }
+
 
 // ---------------------------------------------------------------------------
 // Collector / status
@@ -189,7 +191,7 @@ function normFw(rows: FwRow[], macToName: Map<string, string>): FirewallEvent[] 
   });
 }
 
-export function useFirewall(opts: { kind?: "internal" | "firewall"; limit?: number; since?: number } = {}): Live<FirewallEvent[]> {
+export function useFirewall(opts: { kind?: "internal" | "firewall"; limit?: number; since?: number; paused?: boolean } = {}): Live<FirewallEvent[]> {
   const { data: clients } = useClients();
   const limit = opts.limit ?? 500;
   const qs = new URLSearchParams();
@@ -201,7 +203,9 @@ export function useFirewall(opts: { kind?: "internal" | "firewall"; limit?: numb
     key,
     () => getJson<FwRow[]>(`/api/firewall?${qs.toString()}`),
     mockFw as unknown as FwRow[],
+    opts.paused ? false : 10_000,
   );
+
   const macToName = useMemo(() => {
     const m = new Map<string, string>();
     for (const c of clients) {
