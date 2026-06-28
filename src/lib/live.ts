@@ -60,19 +60,21 @@ function useLive<T>(
   key: string,
   fetcher: () => Promise<T | null>,
   fallback: T,
-  refetchMs = 10_000,
+  refetchMs: number | false = 10_000,
 ): Live<T> {
   const { data, isLoading } = useQuery({
     queryKey: [key],
     queryFn: fetcher,
-    refetchInterval: refetchMs,
-    staleTime: refetchMs / 2,
+    refetchInterval: refetchMs === false ? false : refetchMs,
+    refetchOnWindowFocus: refetchMs !== false,
+    staleTime: refetchMs === false ? Infinity : refetchMs / 2,
   });
   // Treat any non-null response as live, even if the array is empty — that
   // just means UniFi is connected but has nothing to report right now.
   const isLive = data != null;
   return { data: isLive ? (data as T) : fallback, isLive, loading: isLoading };
 }
+
 
 // ---------------------------------------------------------------------------
 // Collector / status
