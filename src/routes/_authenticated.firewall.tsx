@@ -427,58 +427,7 @@ function FirewallPage() {
         </div>
 
 
-        {view !== "list" ? (
-          <div className="rounded-lg border border-border bg-card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="text-[11px] uppercase tracking-wider text-muted-foreground bg-secondary/40">
-                <tr>
-                  <th className="text-left px-3 py-2">{view === "rule" ? "Rule" : view === "mac" ? "Client MAC" : "Source IP"}</th>
-                  {view === "src" && <th className="text-left px-3 py-2">Location</th>}
-                  {view === "src" && <th className="text-left px-3 py-2">Threat</th>}
-                  <th className="text-right px-3 py-2">Events</th>
-                  <th className="text-right px-3 py-2">Failures</th>
-                  <th className="text-right px-3 py-2">Last seen</th>
-                </tr>
-              </thead>
-              <tbody>
-                {grouped.map((g) => {
-                  const info = view === "src" ? ipInfo?.[g.key] : undefined;
-                  const fallbackGeo = view === "src" && !info ? geoLookup(g.key) : null;
-                  return (
-                    <tr key={g.key} className="border-t border-border">
-                      <td className="px-3 py-2 text-xs">
-                        {view === "mac" && g.name && <span className="font-medium mr-2">{g.name}</span>}
-                        <span className="font-mono text-muted-foreground">{g.key}</span>
-                      </td>
-                      {view === "src" && (
-                        <td className="px-3 py-2 text-xs">
-                          {info ? (
-                            <span className="inline-flex items-center gap-1.5">
-                              <span className="text-base leading-none">{ccToFlag(info.cc)}</span>
-                              <span>{info.city ? `${info.city}, ` : ""}{info.country ?? "—"}</span>
-                              {info.isp && <span className="text-muted-foreground">· {info.isp}</span>}
-                            </span>
-                          ) : fallbackGeo ? (
-                            <span className="text-muted-foreground">{fallbackGeo.flag} {fallbackGeo.city}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </td>
-                      )}
-                      {view === "src" && (
-                        <td className="px-3 py-2"><ThreatChip info={info} /></td>
-                      )}
-                      <td className="px-3 py-2 text-right tabular-nums">{g.count}</td>
-                      <td className={cn("px-3 py-2 text-right tabular-nums", g.failures > 0 && "text-severity-error")}>{g.failures}</td>
-                      <td className="px-3 py-2 text-right text-xs text-muted-foreground">{relativeTime(g.last)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
             <ul className="divide-y divide-border">
               {rows.map((e) => {
                 const open = expanded === e.id;
