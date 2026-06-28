@@ -127,12 +127,12 @@ const EMPTY_PARSE_HEALTH: ParseHealth = {
   totals: { accepted: 0, rejected: 0, tzSkewed: 0, cefFailures: 0 },
 };
 
-export function useParseHealth(windowMin = 60): Live<ParseHealth> {
+export function useParseHealth(windowMin = 60, opts: { paused?: boolean } = {}): Live<ParseHealth> {
   return useLive(
     `parse-health:${windowMin}`,
     () => getJson<ParseHealth>(`/api/parse-health?windowMin=${windowMin}`),
     EMPTY_PARSE_HEALTH,
-    15_000,
+    opts.paused ? false : 15_000,
   );
 }
 
@@ -142,12 +142,12 @@ export function useParseHealth(windowMin = 60): Live<ParseHealth> {
 
 type Overview = ReturnType<typeof mockOverview>;
 
-export function useOverview(): Live<Overview> {
-  return useLive("overview", () => getJson<Overview>("/api/overview"), mockOverview());
+export function useOverview(opts: { paused?: boolean } = {}): Live<Overview> {
+  return useLive("overview", () => getJson<Overview>("/api/overview"), mockOverview(), opts.paused ? false : 10_000);
 }
 
-export function useClients(): Live<Client[]> {
-  return useLive("clients", () => getJson<Client[]>("/api/clients"), mockClients);
+export function useClients(opts: { paused?: boolean } = {}): Live<Client[]> {
+  return useLive("clients", () => getJson<Client[]>("/api/clients"), mockClients, opts.paused ? false : 10_000);
 }
 
 // ---------------------------------------------------------------------------
@@ -279,11 +279,8 @@ function bucketEvents<T extends string>(
 // Derived: firewall events bucketed for the active time range (success vs failure).
 // Backed by a dedicated SQL aggregation endpoint so the chart spans the whole
 // window even when the table only fetched the most recent 500 rows.
-export function useFirewallByMinute(range: TimeRangeKey = "1h") {
+export function useFirewallByMinute(range: TimeRangeKey = "1h", opts: { paused?: boolean } = {}) {
   const spec = bucketSpecForRange(range);
-  // Use a stable query key per range so we don't drop cached data every time
-  // the bucket boundary advances (that caused the chart to flash empty). The
-  // refetchInterval drives freshness; `since` is recomputed inside queryFn.
   type BucketRow = { t: number; success: number; failure: number };
   const { data, isLive } = useLive<BucketRow[]>(
     `firewall-buckets:${range}`,
@@ -294,7 +291,7 @@ export function useFirewallByMinute(range: TimeRangeKey = "1h") {
       );
     },
     [],
-    15_000,
+    opts.paused ? false : 15_000,
   );
   if (!isLive) return { data: mockFwByMin, isLive: false, label: "per minute" };
 
@@ -325,6 +322,7 @@ export function useInternalByBucket(
   categorise: (e: FirewallEvent) => string,
   categories: readonly string[],
   range: TimeRangeKey = "1h",
+  opts: { paused?: boolean } = {},
 ) {
   const spec = bucketSpecForRange(range);
   type InternalBucketRow = {
@@ -340,7 +338,7 @@ export function useInternalByBucket(
     `internal-buckets:${range}`,
     () => getJson<InternalBucketRow[]>(`/api/internal/buckets?rangeMs=${spec.windowMs}&bucketMs=${spec.bucketMs}`),
     [],
-    15_000,
+    opts.paused ? false : 15_000,
   );
   if (!isLive) {
     const mapped = (mockFw as FirewallEvent[]).map((e) => ({ time: e.time, key: categorise(e) }));
