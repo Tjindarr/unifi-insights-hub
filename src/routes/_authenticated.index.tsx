@@ -95,17 +95,18 @@ function OverviewPage() {
   const actionBreakdown = useMemo(() => {
     const m = new Map<string, number>();
     for (const e of firewall) {
-      const k = e.action || "info";
+      const k = (e.action || "info").toLowerCase();
       m.set(k, (m.get(k) ?? 0) + 1);
     }
     return [...m.entries()].map(([name, value]) => ({ name, value }));
   }, [firewall]);
 
   const blocked = useMemo(
-    () => firewall.filter((e) => ["block", "drop", "deny", "failure"].includes(e.action)).length,
+    () => firewall.filter((e) => ["block", "drop", "deny", "failure", "reject"].includes((e.action || "").toLowerCase())).length,
     [firewall],
   );
   const allowed = firewall.length - blocked;
+
 
   // Top firewall rules
   const topRules = useMemo(() => {
