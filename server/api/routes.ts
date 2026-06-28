@@ -546,11 +546,13 @@ export async function registerApi(
   // intentionally separate from /api/firewall rows so the chart is controlled
   // only by the global time range, never by the table's Last-N selector.
   app.get<{
-    Querystring: { rangeMs?: string; bucketMs?: string };
+    Querystring: { rangeMs?: string; bucketMs?: string; since?: string; until?: string };
   }>("/api/internal/buckets", async (req) => {
     const rangeMs = req.query.rangeMs ? Number(req.query.rangeMs) : undefined;
     const bucketMs = req.query.bucketMs ? Number(req.query.bucketMs) : 60_000;
-    return internalEventBuckets(db, { rangeMs, bucketMs });
+    const since = req.query.since ? Number(req.query.since) : undefined;
+    const until = req.query.until ? Number(req.query.until) : undefined;
+    return internalEventBuckets(db, { rangeMs, bucketMs, since, until });
   });
 
   // Aggregated severity buckets for the Logs "messages per minute" chart.

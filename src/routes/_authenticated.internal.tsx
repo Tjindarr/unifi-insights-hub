@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChevronRight, Download, Search } from "lucide-react";
 
@@ -7,7 +7,7 @@ import { PageHeader, SeverityDot } from "@/components/app-shell";
 import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
 import { useFirewall, useInternalByBucket } from "@/lib/live";
-import { useUI } from "@/lib/ui-store";
+import { TIME_RANGES, useUI, type TimeRangeKey } from "@/lib/ui-store";
 import {
   describeFirewallEvent,
   internalCategory,
@@ -23,6 +23,23 @@ export const Route = createFileRoute("/_authenticated/internal")({
   head: () => ({ meta: [{ title: "Internal events — UniFi Dashboard" }] }),
   component: InternalPage,
 });
+
+const CUSTOM_RANGE_KEY = "internal-custom-range";
+
+function rangeToMinutes(r: TimeRangeKey): number {
+  return TIME_RANGES.find((x) => x.key === r)?.minutes ?? 60;
+}
+
+function formatWindow(ms: number): string {
+  const m = Math.round(ms / 60_000);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  if (h < 24) return rem ? `${h}h ${rem}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  const remH = h % 24;
+  return remH ? `${d}d ${remH}h` : `${d}d`;
+}
 
 type Filter = "all" | InternalCategory;
 
@@ -59,11 +76,79 @@ type LimitOpt = typeof LIMITS[number];
 
 function InternalPage() {
   const [limit, setLimit] = useState<LimitOpt>(1000);
-  const { data: events, isLive } = useFirewall({ kind: "internal", limit });
-  const { range } = useUI();
+  const { range, setRange } = useUI();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  // Custom From / To timespan — when both set and From < To, overrides the
+  // global time range and bounds the internal-events query exactly to that window.
+  const [customFrom, setCustomFrom] = useState<string>("");
+  const [customTo, setCustomTo] = useState<string>("");
+  const [rangeError, setRangeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(CUSTOM_RANGE_KEY);
+      if (raw) {
+        const { from, to } = JSON.parse(raw) as { from?: string; to?: string };
+        if (from) setCustomFrom(from);
+        if (to) setCustomTo(to);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const customActive = useMemo(() => {
+    if (!customFrom || !customTo) return false;
+    const f = new Date(customFrom).getTime();
+    const t = new Date(customTo).getTime();
+    return Number.isFinite(f) && Number.isFinite(t) && f < t;
+  }, [customFrom, customTo]);
+
+  useEffect(() => {
+    setLimit(1000);
+  }, [range, customFrom, customTo]);
+
+  const { sinceMs, untilMs, windowMs } = useMemo(() => {
+    if (customActive) {
+      const f = new Date(customFrom).getTime();
+      const t = new Date(customTo).getTime();
+      return { sinceMs: f, untilMs: t, windowMs: t - f };
+    }
+    const w = rangeToMinutes(range) * 60_000;
+    const snapped = Math.floor((Date.now() - w) / 30_000) * 30_000;
+    return { sinceMs: snapped, untilMs: undefined as number | undefined, windowMs: w };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customActive, customFrom, customTo, range, Math.floor(Date.now() / 30_000)]);
+
+  function applyCustom() {
+    if (!customFrom || !customTo) { setRangeError("Pick both From and To."); return; }
+    const f = new Date(customFrom).getTime();
+    const t = new Date(customTo).getTime();
+    if (!Number.isFinite(f) || !Number.isFinite(t)) { setRangeError("Invalid date."); return; }
+    if (f >= t) { setRangeError("End must be after start."); return; }
+    setRangeError(null);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(CUSTOM_RANGE_KEY, JSON.stringify({ from: customFrom, to: customTo }));
+    }
+  }
+
+  function clearCustom() {
+    setCustomFrom("");
+    setCustomTo("");
+    setRangeError(null);
+    if (typeof window !== "undefined") localStorage.removeItem(CUSTOM_RANGE_KEY);
+  }
+
+  const { data: events, isLive } = useFirewall({
+    kind: "internal",
+    limit,
+    since: sinceMs,
+    until: untilMs,
+  });
 
   const internal = useMemo(() => events.filter(isInternalEvent), [events]);
 
@@ -101,7 +186,12 @@ function InternalPage() {
     internalCategory,
     CHART_SERIES.map((s) => s.key),
     range,
+    {
+      sinceMs: customActive ? sinceMs : undefined,
+      untilMs: customActive ? untilMs : undefined,
+    },
   );
+
   const windowTotal = useMemo(
     () => byBucket.reduce((s, r) => s + CHART_SERIES.reduce((a, c) => a + (Number(r[c.key]) || 0), 0), 0),
     [byBucket],
@@ -118,7 +208,7 @@ function InternalPage() {
     <div>
       <PageHeader
         title="Internal events"
-        description={`${rows.length} of ${internal.length} events · Wi-Fi associate / deauth, auth, device, system`}
+        description={`${rows.length} of ${internal.length} events · window ${customActive ? "custom" : range} (${formatWindow(windowMs)})`}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <DemoBadge isLive={isLive} />
@@ -168,7 +258,86 @@ function InternalPage() {
         }
       />
 
+      <div className="px-6 pt-4">
+        <div className="rounded-lg border border-border bg-card px-4 py-3 flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Quick range</label>
+            <div className="flex rounded-md border border-border overflow-hidden text-xs">
+              {TIME_RANGES.map((r) => (
+                <button
+                  key={r.key}
+                  onClick={() => { setRange(r.key); clearCustom(); }}
+                  className={cn(
+                    "px-2.5 py-1.5",
+                    !customActive && range === r.key
+                      ? "bg-secondary text-secondary-foreground"
+                      : "text-muted-foreground hover:bg-secondary/60",
+                  )}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">From</label>
+            <Input
+              type="datetime-local"
+              value={customFrom}
+              onChange={(e) => { setCustomFrom(e.target.value); setRangeError(null); }}
+              className="h-8 w-[200px] font-mono text-xs"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">To</label>
+            <Input
+              type="datetime-local"
+              value={customTo}
+              onChange={(e) => { setCustomTo(e.target.value); setRangeError(null); }}
+              className="h-8 w-[200px] font-mono text-xs"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={applyCustom}
+              disabled={!customFrom || !customTo}
+              className="h-8 px-3 rounded-md border border-border bg-secondary text-xs text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50"
+            >
+              Apply
+            </button>
+            {customActive && (
+              <button
+                onClick={clearCustom}
+                className="h-8 px-3 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          <div className="ml-auto text-[11px] text-muted-foreground tabular-nums">
+            {customActive ? (
+              <>
+                {new Date(sinceMs).toLocaleString(undefined, { hour12: false })}
+                {" → "}
+                {untilMs != null ? new Date(untilMs).toLocaleString(undefined, { hour12: false }) : "now"}
+                {" · "}
+                {formatWindow(windowMs)}
+              </>
+            ) : (
+              <>Last {formatWindow(windowMs)} · live up to now</>
+            )}
+          </div>
+
+          {rangeError && <div className="w-full text-[11px] text-severity-error">{rangeError}</div>}
+        </div>
+      </div>
+
       <div className="p-6 space-y-4">
+
         <div className="rounded-lg border border-border bg-card">
           <div className="px-4 pt-3 flex items-center justify-between">
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground">
