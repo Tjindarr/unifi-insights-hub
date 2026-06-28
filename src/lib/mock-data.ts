@@ -342,7 +342,7 @@ export const firewallEvents: FirewallEvent[] = _samples.map((s) => s.event);
 const _systemLines = [
   { app: "systemd",  msg: "Finished Check and correct WiFi IRQ affinity." },
   { app: "systemd",  msg: "smp-affinity-monitor.service: Succeeded." },
-  { app: "dnsmasq",  msg: "DHCPACK(br10) 172.16.10.45 b8:01:1f:5e:36:45 ipad-living" },
+  { app: "dnsmasq",  msg: "DHCPACK(br10) 172.16.10.45 b8:01:1f:5e:36:45 ipad-tablet" },
   { app: "kernel",   msg: "wlan: peer 22:c0:6c:f3:01:b0 roamed wifi0ap0 -> wifi1ap2" },
   { app: "dpinger",  msg: "WAN 1.1.1.1: latency 11ms loss 0%" },
 ];
