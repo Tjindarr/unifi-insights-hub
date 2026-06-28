@@ -515,6 +515,16 @@ export async function registerApi(
     return internalEventBuckets(db, { rangeMs, bucketMs });
   });
 
+  // Aggregated severity buckets for the Logs "messages per minute" chart.
+  // Same pattern as the firewall/internal buckets: driven by global time range.
+  app.get<{
+    Querystring: { rangeMs?: string; bucketMs?: string };
+  }>("/api/syslog/buckets", async (req) => {
+    const rangeMs = req.query.rangeMs ? Number(req.query.rangeMs) : 60 * 60_000;
+    const bucketMs = req.query.bucketMs ? Number(req.query.bucketMs) : 60_000;
+    return syslogBuckets(db, { rangeMs, bucketMs });
+  });
+
   // ---- IP enrichment (GeoIP via ip-api.com; threat via AbuseIPDB if key set) ----
   // Persistent cache in SQLite so restarts do not re-spend API quota.
   // TTLs: GeoIP 7 days, AbuseIPDB 7 days (per user request).
