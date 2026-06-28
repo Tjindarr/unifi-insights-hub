@@ -49,8 +49,34 @@ function matches(s: SyslogEntry, p: Parsed): boolean {
   return true;
 }
 
+const PAGE_SIZE = 500;
+const MAX_LIMIT = 20000;
+
 function LogsPage() {
-  const { data: syslog, isLive } = useSyslog();
+  const { range } = useUI();
+  const rangeMinutes = useMemo(() => {
+    switch (range) {
+      case "15m": return 15;
+      case "1h": return 60;
+      case "24h": return 60 * 24;
+      case "7d": return 60 * 24 * 7;
+      case "30d": return 60 * 24 * 30;
+      default: return 60;
+    }
+  }, [range]);
+
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  // Reset paging when the time window changes.
+  useEffect(() => { setLimit(PAGE_SIZE); }, [range]);
+
+  // Snap `since` to the bucket boundary so query keys stay stable between renders.
+  const sinceMs = useMemo(() => {
+    const windowMs = rangeMinutes * 60_000;
+    const bucket = 30_000;
+    return Math.floor((Date.now() - windowMs) / bucket) * bucket;
+  }, [rangeMinutes, /* re-evaluate at most once per minute */ Math.floor(Date.now() / 60_000)]);
+
+  const { data: syslog, isLive } = useSyslog({ since: sinceMs, limit });
   const [q, setQ] = useState("");
   const [sev, setSev] = useState<Set<Severity>>(new Set(SEVERITIES));
   const [host, setHost] = useState<string | "all">("all");
@@ -71,8 +97,10 @@ function LogsPage() {
   const rows = useMemo(() =>
     syslog.filter((s: SyslogEntry) => sev.has(s.severity) && (host === "all" || s.host === host) && matches(s, parsed))
   , [parsed, sev, host, syslog]);
-  const { range } = useUI();
   const { data: syslogByMinute, label: bucketLabel } = useSyslogByMinute(range);
+
+  const canLoadMore = isLive && syslog.length >= limit && limit < MAX_LIMIT;
+
 
 
 
@@ -92,7 +120,7 @@ function LogsPage() {
     <div>
       <PageHeader
         title="Logs"
-        description={`${rows.length} of ${syslog.length} · syntax: host:U7ProXG sev:warn app:stahtd term`}
+        description={`${rows.length} of ${syslog.length} loaded · window ${range} · syntax: host:U7ProXG sev:warn app:stahtd term`}
         actions={
           <div className="flex items-center gap-2">
             <DemoBadge isLive={isLive} />
@@ -183,6 +211,33 @@ function LogsPage() {
             ))}
             {rows.length === 0 && <li className="px-4 py-12 text-center text-sm text-muted-foreground">No log entries match the current filters.</li>}
           </ul>
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-border text-xs text-muted-foreground">
+            <span>
+              Showing {rows.length.toLocaleString()} of {syslog.length.toLocaleString()} loaded
+              {syslog.length >= limit && isLive ? ` · loaded ${limit.toLocaleString()} of last ${range}` : ""}
+            </span>
+            <div className="flex items-center gap-2">
+              {canLoadMore && (
+                <button
+                  onClick={() => setLimit((l) => Math.min(l + PAGE_SIZE, MAX_LIMIT))}
+                  className="px-2.5 py-1.5 rounded-md border border-border text-xs text-foreground hover:bg-secondary/60"
+                >
+                  Load {PAGE_SIZE} more
+                </button>
+              )}
+              {limit > PAGE_SIZE && (
+                <button
+                  onClick={() => setLimit(PAGE_SIZE)}
+                  className="px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60"
+                >
+                  Reset
+                </button>
+              )}
+              {!canLoadMore && limit >= MAX_LIMIT && (
+                <span>Max {MAX_LIMIT.toLocaleString()} rows · narrow the time range or use search.</span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

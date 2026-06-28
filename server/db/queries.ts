@@ -200,7 +200,7 @@ export function recentSyslog(
     since?: number;
   },
 ) {
-  const limit = Math.min(opts.limit ?? 500, 5000);
+  const limit = Math.min(opts.limit ?? 500, 20000);
   const where: string[] = [];
   const params: Record<string, unknown> = {};
 
