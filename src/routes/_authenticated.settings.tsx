@@ -768,22 +768,6 @@ function SettingsPage() {
           </p>
         </section>
 
-        <section className="rounded-lg border border-border bg-card p-5">
-          <h2 className="text-sm font-medium">Unraid install</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            No env vars required. Everything above is stored in
-            <code className="font-mono"> /data/config.json</code> and survives container updates.
-          </p>
-          <ol className="mt-3 space-y-2 text-xs text-muted-foreground list-decimal list-inside leading-relaxed">
-            <li>Map a host path to <code className="font-mono">/data</code> (e.g.{" "}
-              <code className="font-mono">/mnt/user/appdata/unifi-dashboard</code>).</li>
-            <li>Expose <code className="font-mono">3000/tcp</code> for the UI and <code className="font-mono">514/udp</code> for syslog
-              (or use <code className="font-mono">--network host</code> so the source IP is preserved).</li>
-            <li>Log in with <code className="font-mono">admin / admin</code>, set a new password, then come back here and
-              fill in your UniFi credentials.</li>
-            <li>On the UDR, enable Remote Syslog pointing at this server on UDP 514.</li>
-          </ol>
-        </section>
       </div>
 
       <style>{`
