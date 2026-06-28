@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChevronRight, Download, Search } from "lucide-react";
 
@@ -7,7 +7,7 @@ import { PageHeader, SeverityDot } from "@/components/app-shell";
 import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
 import { useFirewall, useInternalByBucket } from "@/lib/live";
-import { useUI } from "@/lib/ui-store";
+import { TIME_RANGES, useUI, type TimeRangeKey } from "@/lib/ui-store";
 import {
   describeFirewallEvent,
   internalCategory,
@@ -23,6 +23,23 @@ export const Route = createFileRoute("/_authenticated/internal")({
   head: () => ({ meta: [{ title: "Internal events — UniFi Dashboard" }] }),
   component: InternalPage,
 });
+
+const CUSTOM_RANGE_KEY = "internal-custom-range";
+
+function rangeToMinutes(r: TimeRangeKey): number {
+  return TIME_RANGES.find((x) => x.key === r)?.minutes ?? 60;
+}
+
+function formatWindow(ms: number): string {
+  const m = Math.round(ms / 60_000);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  if (h < 24) return rem ? `${h}h ${rem}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  const remH = h % 24;
+  return remH ? `${d}d ${remH}h` : `${d}d`;
+}
 
 type Filter = "all" | InternalCategory;
 
