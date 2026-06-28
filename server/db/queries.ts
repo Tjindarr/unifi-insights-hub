@@ -17,10 +17,35 @@ export function openDb(path: string) {
   db.pragma("foreign_keys = ON");
   const schema = readFileSync(join(here, "schema.sql"), "utf8");
   db.exec(schema);
+  // Backfill the firewall FTS mirror the first time it appears (for DBs that
+  // pre-date the FTS index). One-shot: cheap once, no-op afterwards.
+  try {
+    const ftsCount = (db.prepare("SELECT COUNT(*) AS n FROM firewall_events_fts").get() as { n: number }).n;
+    const fwCount = (db.prepare("SELECT COUNT(*) AS n FROM firewall_events").get() as { n: number }).n;
+    if (fwCount > 0 && ftsCount === 0) {
+      db.exec("INSERT INTO firewall_events_fts(firewall_events_fts) VALUES('rebuild')");
+    }
+  } catch { /* best-effort */ }
   // Refresh planner stats so partial / composite indexes are picked up.
   try { db.exec("ANALYZE"); } catch { /* best-effort */ }
   return db;
 }
+
+// Translate a free-text search box into a safe FTS5 MATCH expression.
+// - Splits on whitespace into terms
+// - Strips FTS5 syntax characters from each term
+// - Wraps each term in double quotes and adds the prefix `*` operator so
+//   typing "192.168" or "deny" matches as you type without surprising the
+//   user with FTS5 boolean parsing of dots / dashes / colons.
+export function toFtsQuery(input: string): string | null {
+  const tokens = input
+    .split(/\s+/)
+    .map((t) => t.replace(/["()*:^]/g, "").trim())
+    .filter((t) => t.length >= 2);
+  if (!tokens.length) return null;
+  return tokens.map((t) => `"${t}"*`).join(" AND ");
+}
+
 
 // ---- Bucket aggregation cache --------------------------------------------
 // Charts on the dashboard refetch every 15s across multiple clients. The
