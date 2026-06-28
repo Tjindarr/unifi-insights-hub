@@ -77,8 +77,6 @@ function GeoCell({ ip, info }: { ip: string; info?: IpInfo }) {
   );
 }
 
-type ActionFilter = "all" | "allow" | "block" | "drop" | "failure" | "success";
-type ThreatFilter = "all" | "high" | "medium" | "low" | "clean" | "unknown";
 
 const LIMITS = [500, 1000, 2000, 5000, 10000] as const;
 type LimitOpt = typeof LIMITS[number];
@@ -186,7 +184,6 @@ function FirewallPage() {
   const [proto, setProto] = useState<"all" | "tcp" | "udp" | "icmp">("all");
   const [action, setAction] = useState<ActionFilter>("all");
   const [threat, setThreat] = useState<ThreatFilter>("all");
-  const [view, setView] = useState<View>("list");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   // Pre-filter: this page only deals with iptables / firewall-rule hits.
@@ -307,13 +304,6 @@ function FirewallPage() {
               {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
               {paused ? "Paused" : "Live"}
             </button>
-            <div className="flex rounded-md border border-border overflow-hidden text-xs">
-              {(["list", "rule", "mac", "src"] as const).map((v) => (
-                <button key={v} onClick={() => setView(v)} className={cn("px-2.5 py-1.5 capitalize", view === v ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-secondary/60")}>
-                  {v === "list" ? "List" : `By ${v}`}
-                </button>
-              ))}
-            </div>
             <div className="flex rounded-md border border-border overflow-hidden text-xs">
               {(["all", "allow", "block", "drop", "failure", "success"] as const).map((f) => (
                 <button key={f} onClick={() => setAction(f)} className={cn("px-2.5 py-1.5 capitalize", action === f ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-secondary/60")}>{f}</button>
