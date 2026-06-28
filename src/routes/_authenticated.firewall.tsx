@@ -8,7 +8,7 @@ import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
 import { useFirewall, useFirewallByMinute } from "@/lib/live";
 import { TIME_RANGES, useUI, type TimeRangeKey } from "@/lib/ui-store";
-import { deauthReasonMap, geoLookup } from "@/lib/mock-extra";
+import { deauthReasonMap } from "@/lib/mock-extra";
 import {
   describeFirewallEvent,
   isBlockedAction,
