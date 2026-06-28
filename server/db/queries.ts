@@ -191,7 +191,14 @@ export function makeFirewallInsert(db: Database.Database) {
 
 export function recentSyslog(
   db: Database.Database,
-  opts: { q?: string; severity?: string[]; host?: string; firewallOnly?: boolean; limit?: number },
+  opts: {
+    q?: string;
+    severity?: string[];
+    host?: string;
+    firewallOnly?: boolean;
+    limit?: number;
+    since?: number;
+  },
 ) {
   const limit = Math.min(opts.limit ?? 500, 5000);
   const where: string[] = [];
@@ -206,16 +213,23 @@ export function recentSyslog(
     where.push("s.host = @host");
     params.host = opts.host;
   }
+  if (opts.since != null) {
+    where.push("s.time >= @since");
+    params.since = opts.since;
+  }
 
   if (opts.q) {
-    // FTS5 path
-    params.q = opts.q;
-    const sql = `
-      SELECT s.* FROM syslog_fts f
-      JOIN syslog s ON s.id = f.rowid
-      WHERE f.syslog_fts MATCH @q ${where.length ? "AND " + where.join(" AND ") : ""}
-      ORDER BY s.time DESC LIMIT ${limit}`;
-    return db.prepare(sql).all(params);
+    const ftsQuery = toFtsQuery(opts.q);
+    if (ftsQuery) {
+      // FTS5 path — millisecond response across millions of rows.
+      params.q = ftsQuery;
+      const sql = `
+        SELECT s.* FROM syslog_fts f
+        JOIN syslog s ON s.id = f.rowid
+        WHERE f.syslog_fts MATCH @q ${where.length ? "AND " + where.join(" AND ") : ""}
+        ORDER BY s.time DESC LIMIT ${limit}`;
+      return db.prepare(sql).all(params);
+    }
   }
 
   const sql = `
@@ -224,6 +238,7 @@ export function recentSyslog(
     ORDER BY s.time DESC LIMIT ${limit}`;
   return db.prepare(sql).all(params);
 }
+
 
 // SQL fragment that mirrors `isInternalEvent` on the frontend.
 // Matches STA-tracker, Wi-Fi auth / assoc / roam, and UniFi system events
