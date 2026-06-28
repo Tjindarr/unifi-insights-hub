@@ -322,6 +322,11 @@ export function recentFirewall(
     where.push("f.time >= @since");
     params.since = opts.since;
   }
+  if (opts.until != null) {
+    where.push("f.time <= @until");
+    params.until = opts.until;
+  }
+
 
   // When a free-text search is present, hit the FTS5 mirror instead of
   // LIKE %q% which was forcing a full-table scan. Falls back to LIKE only
