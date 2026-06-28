@@ -8,6 +8,7 @@ import {
   internalEventBuckets,
   recentFirewall,
   recentSyslog,
+  syslogBuckets,
   syslogCountSince,
 } from "../db/queries.ts";
 import { clientDetails } from "../syslog/enrichers.ts";
