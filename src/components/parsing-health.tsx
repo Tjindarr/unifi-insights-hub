@@ -94,10 +94,14 @@ export function ParsingHealth({ windowMin = 60, paused = false }: { windowMin?: 
             <CartesianGrid stroke="var(--color-border)" strokeDasharray="2 4" vertical={false} />
             <XAxis
               dataKey="t"
-              tickFormatter={(t) => formatTime(t)}
+              type="number"
+              scale="time"
+              domain={xDomain}
+              ticks={xTicks}
+              tickFormatter={(t) => formatTime(t as number)}
               tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }}
               stroke="var(--color-border)"
-              minTickGap={40}
+              minTickGap={24}
             />
             <YAxis
               allowDecimals={false}
