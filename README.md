@@ -275,6 +275,43 @@ Almost everything is configurable from the UI and persisted in
 | `RETENTION_INTERVAL_MIN` | `60` | Seed cleanup interval |
 | `RETENTION_VACUUM_HOURS` | `24` | Seed VACUUM interval |
 
+## Container image & releases
+
+Images are built and published automatically by
+[`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml)
+to **GitHub Container Registry**:
+
+```
+ghcr.io/tjindarr/unifi-insights-hub:latest
+```
+
+Triggers:
+
+| Event | Tags produced |
+| --- | --- |
+| Push to `main` | `latest`, `main-<sha>` |
+| Push of a `vX.Y.Z` git tag | `vX.Y.Z`, `X.Y`, `X`, `latest` |
+| Manual `workflow_dispatch` | `latest` |
+
+All images are multi-arch (`linux/amd64` + `linux/arm64`) so they run on
+Unraid x86_64 boxes and on ARM hosts. The Unraid Community Apps template
+([`unraid/templates/firesight.xml`](unraid/templates/firesight.xml)) pins
+the `latest` tag, so cutting a release is just:
+
+```bash
+git tag v1.2.3
+git push --tags
+```
+
+GitHub Actions builds, pushes, and Unraid users get the update through
+**Apps → Check for Updates**.
+
+### One-time GHCR setup
+
+The workflow uses the built-in `GITHUB_TOKEN` (no PAT needed). After the
+first successful run, open the package on GHCR and set its visibility to
+**Public** so Unraid users can pull it without authentication.
+
 ## Updating
 
 Unraid: **Apps → Installed Apps → Check for Updates → Update**.
