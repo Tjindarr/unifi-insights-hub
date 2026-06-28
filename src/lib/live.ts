@@ -91,6 +91,9 @@ export type CollectorStatus = {
   retentionDays: number;
   oldestEntryDays: number;
   fts5Indexed: number;
+  abuseQuotaExhausted?: boolean;
+  abuseQuotaRetryAt?: number | null;
+  abuseQuotaError?: string | null;
 };
 
 const mockCollectorFull: CollectorStatus = {
