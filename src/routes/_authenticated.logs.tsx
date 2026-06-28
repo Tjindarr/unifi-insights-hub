@@ -66,17 +66,32 @@ function LogsPage() {
   }, [range]);
 
   const [limit, setLimit] = useState(PAGE_SIZE);
-  // Reset paging when the time window changes.
-  useEffect(() => { setLimit(PAGE_SIZE); }, [range]);
+  // Custom date range: when both ends are set, they override the global range.
+  const [customFrom, setCustomFrom] = useState<string>("");
+  const [customTo, setCustomTo] = useState<string>("");
+  const customActive = !!(customFrom && customTo);
+  // Reset paging when the window changes.
+  useEffect(() => { setLimit(PAGE_SIZE); }, [range, customFrom, customTo]);
 
   // Snap `since` to the bucket boundary so query keys stay stable between renders.
-  const sinceMs = useMemo(() => {
+  const { sinceMs, untilMs } = useMemo(() => {
+    if (customActive) {
+      const f = new Date(customFrom).getTime();
+      const t = new Date(customTo).getTime();
+      if (Number.isFinite(f) && Number.isFinite(t) && f < t) {
+        return { sinceMs: f, untilMs: t };
+      }
+    }
     const windowMs = rangeMinutes * 60_000;
     const bucket = 30_000;
-    return Math.floor((Date.now() - windowMs) / bucket) * bucket;
-  }, [rangeMinutes, /* re-evaluate at most once per minute */ Math.floor(Date.now() / 60_000)]);
+    return {
+      sinceMs: Math.floor((Date.now() - windowMs) / bucket) * bucket,
+      untilMs: undefined as number | undefined,
+    };
+  }, [rangeMinutes, customActive, customFrom, customTo, Math.floor(Date.now() / 60_000)]);
 
-  const { data: syslog, isLive } = useSyslog({ since: sinceMs, limit });
+  const { data: syslog, isLive } = useSyslog({ since: sinceMs, until: untilMs, limit });
+
   const [q, setQ] = useState("");
   const [sev, setSev] = useState<Set<Severity>>(new Set(SEVERITIES));
   const [host, setHost] = useState<string | "all">("all");
