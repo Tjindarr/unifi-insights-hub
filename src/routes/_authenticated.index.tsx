@@ -15,7 +15,7 @@ import {
 } from "@/lib/live";
 import { useUI } from "@/lib/ui-store";
 import {
-  internalCategory, isFirewallRuleEvent, isInternalEvent, shortEventLabel,
+  internalCategory, isBlockedAction, isFirewallRuleEvent, isInternalEvent, shortEventLabel,
 } from "@/lib/firewall-format";
 import { externalIp, threatTier, useIpInfo } from "@/lib/ip-utils";
 import { formatTime, relativeTime } from "@/lib/format";
