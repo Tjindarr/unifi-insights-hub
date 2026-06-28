@@ -294,6 +294,7 @@ export function recentFirewall(
     q?: string;
     limit?: number;
     since?: number;
+    until?: number;
     kind?: "internal" | "firewall";
   },
 ) {
