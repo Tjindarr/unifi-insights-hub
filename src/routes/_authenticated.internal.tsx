@@ -208,7 +208,7 @@ function InternalPage() {
     <div>
       <PageHeader
         title="Internal events"
-        description={`${rows.length} of ${internal.length} events · Wi-Fi associate / deauth, auth, device, system`}
+        description={`${rows.length} of ${internal.length} events · window ${customActive ? "custom" : range} (${formatWindow(windowMs)})`}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <DemoBadge isLive={isLive} />
