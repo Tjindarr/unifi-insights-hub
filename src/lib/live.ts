@@ -191,7 +191,7 @@ function normFw(rows: FwRow[], macToName: Map<string, string>): FirewallEvent[] 
   });
 }
 
-export function useFirewall(opts: { kind?: "internal" | "firewall"; limit?: number; since?: number } = {}): Live<FirewallEvent[]> {
+export function useFirewall(opts: { kind?: "internal" | "firewall"; limit?: number; since?: number; paused?: boolean } = {}): Live<FirewallEvent[]> {
   const { data: clients } = useClients();
   const limit = opts.limit ?? 500;
   const qs = new URLSearchParams();
@@ -203,7 +203,9 @@ export function useFirewall(opts: { kind?: "internal" | "firewall"; limit?: numb
     key,
     () => getJson<FwRow[]>(`/api/firewall?${qs.toString()}`),
     mockFw as unknown as FwRow[],
+    opts.paused ? false : 10_000,
   );
+
   const macToName = useMemo(() => {
     const m = new Map<string, string>();
     for (const c of clients) {
