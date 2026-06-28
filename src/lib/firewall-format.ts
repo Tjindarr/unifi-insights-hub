@@ -41,13 +41,19 @@ const AUTH_ALGO: Record<string, string> = {
 };
 
 const EVENT_TYPE_LABEL: Record<string, string> = {
+  association: "Connected",
   sta_assoc: "Connected",
   sta_assoc_attempt: "Connection attempt",
+  sta_auth: "Authenticated",
   sta_leave: "Disconnected",
   sta_disconnect: "Disconnected",
+  sta_roam: "Roaming",
+  soft_failure: "Soft failure",
+  "soft failure": "Soft failure",
   failure: "Authentication failed",
+  auth_failure: "Authentication failed",
   success: "Authentication succeeded",
-  roam: "Roamed between APs",
+  auth_success: "Authentication succeeded",
 };
 
 function reason(code?: string | number | null): string | null {
