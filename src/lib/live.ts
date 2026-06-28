@@ -189,12 +189,13 @@ function normFw(rows: FwRow[], macToName: Map<string, string>): FirewallEvent[] 
   });
 }
 
-export function useFirewall(opts: { kind?: "internal" | "firewall"; limit?: number } = {}): Live<FirewallEvent[]> {
+export function useFirewall(opts: { kind?: "internal" | "firewall"; limit?: number; since?: number } = {}): Live<FirewallEvent[]> {
   const { data: clients } = useClients();
   const limit = opts.limit ?? 500;
   const qs = new URLSearchParams();
   qs.set("limit", String(limit));
   if (opts.kind) qs.set("kind", opts.kind);
+  if (opts.since != null) qs.set("since", String(opts.since));
   const key = `firewall?${qs.toString()}`;
   const { data, isLive, loading } = useLive<FwRow[] | FirewallEvent[]>(
     key,
