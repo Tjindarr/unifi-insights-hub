@@ -167,7 +167,7 @@ function FirewallPage() {
       const g = map.get(k) ?? { key: k, name: view === "mac" ? e.clientName : undefined, count: 0, failures: 0, last: e.time };
       if (view === "mac" && !g.name && e.clientName) g.name = e.clientName;
       g.count++;
-      if (e.action === "failure") g.failures++;
+      if (isBlockedAction(e.action)) g.failures++;
       if (e.time > g.last) g.last = e.time;
       map.set(k, g);
     }
@@ -176,7 +176,7 @@ function FirewallPage() {
 
   const stats = {
     total: firewallEvents.length,
-    failures: firewallEvents.filter((e) => e.action === "failure").length,
+    failures: firewallEvents.filter((e) => isBlockedAction(e.action)).length,
     uniqueClients: new Set(firewallEvents.map((e) => e.clientMac)).size,
     external: tagged.filter((t) => t.ext).length,
   };
