@@ -218,6 +218,10 @@ export function recentSyslog(
     where.push("s.time >= @since");
     params.since = opts.since;
   }
+  if (opts.until != null) {
+    where.push("s.time <= @until");
+    params.until = opts.until;
+  }
 
   if (opts.q) {
     const ftsQuery = toFtsQuery(opts.q);
