@@ -331,7 +331,7 @@ function OverviewPage() {
         </div>
 
         {/* Bottom row: top rules horizontal bar + parsing health */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ChartCard title="Top firewall rules" subtitle="Events / blocked" height="h-72">
             {topRules.length === 0 ? <Empty /> : (
               <ResponsiveContainer width="100%" height="100%">
