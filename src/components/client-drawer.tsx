@@ -8,6 +8,7 @@ import {
 import { clients as mockClientsList, firewallEvents as mockFwEvents } from "@/lib/mock-data";
 import { clientHistory, clientDpi } from "@/lib/mock-extra";
 import { useClients, useFirewall } from "@/lib/live";
+import { isBlockedAction } from "@/lib/firewall-format";
 import { formatBits, formatBytes, formatTime, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -219,7 +220,7 @@ export function ClientDrawer({ id, onClose }: { id: string | null; onClose: () =
                     <li key={e.id} className="py-1.5 text-xs flex items-center gap-2">
                       <span className={cn(
                         "px-1.5 py-0.5 rounded text-[10px] uppercase font-medium",
-                        e.action === "failure" ? "bg-severity-error/15 text-severity-error" : "bg-chart-2/15 text-chart-2",
+                        isBlockedAction(e.action) ? "bg-severity-error/15 text-severity-error" : "bg-chart-2/15 text-chart-2",
                       )}>{e.action}</span>
                       <span className="font-mono">{e.rule}</span>
                       <span className="text-muted-foreground truncate flex-1">{e.reason}</span>

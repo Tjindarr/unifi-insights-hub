@@ -3,6 +3,7 @@
 // All deterministic so the preview is stable.
 
 import { clients, accessPoints, syslog, firewallEvents } from "./mock-data";
+import { isBlockedAction } from "./firewall-format";
 
 function mulberry32(seed: number) {
   let s = seed >>> 0;
@@ -254,7 +255,7 @@ export const firewallByMinute = (() => {
     d.setSeconds(0, 0);
     const t = d.toISOString();
     buckets[t] ??= { t, failure: 0, success: 0 };
-    if (e.action === "failure") buckets[t].failure++;
+    if (isBlockedAction(e.action)) buckets[t].failure++;
     else buckets[t].success++;
   });
   return Object.values(buckets).sort((a, b) => a.t.localeCompare(b.t));

@@ -15,7 +15,7 @@ import {
 } from "@/lib/live";
 import { useUI } from "@/lib/ui-store";
 import {
-  internalCategory, isFirewallRuleEvent, isInternalEvent, shortEventLabel,
+  internalCategory, isBlockedAction, isFirewallRuleEvent, isInternalEvent, shortEventLabel,
 } from "@/lib/firewall-format";
 import { externalIp, threatTier, useIpInfo } from "@/lib/ip-utils";
 import { formatTime, relativeTime } from "@/lib/format";
@@ -102,7 +102,7 @@ function OverviewPage() {
   }, [firewall]);
 
   const blocked = useMemo(
-    () => firewall.filter((e) => ["block", "drop", "deny", "failure", "reject"].includes((e.action || "").toLowerCase())).length,
+    () => firewall.filter((e) => isBlockedAction(e.action)).length,
     [firewall],
   );
   const allowed = firewall.length - blocked;
@@ -115,7 +115,7 @@ function OverviewPage() {
       const k = e.rule || "—";
       const row = m.get(k) ?? { name: k, count: 0, blocked: 0 };
       row.count++;
-      if (["block", "drop", "deny", "failure", "reject"].includes((e.action || "").toLowerCase())) row.blocked++;
+      if (isBlockedAction(e.action)) row.blocked++;
       m.set(k, row);
     }
     return [...m.values()].sort((a, b) => b.count - a.count).slice(0, 8);

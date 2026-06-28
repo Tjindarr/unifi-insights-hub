@@ -11,6 +11,7 @@ import { useUI } from "@/lib/ui-store";
 import { deauthReasonMap, geoLookup } from "@/lib/mock-extra";
 import {
   describeFirewallEvent,
+  isBlockedAction,
   isFirewallRuleEvent,
   shortEventLabel,
 } from "@/lib/firewall-format";
@@ -166,7 +167,7 @@ function FirewallPage() {
       const g = map.get(k) ?? { key: k, name: view === "mac" ? e.clientName : undefined, count: 0, failures: 0, last: e.time };
       if (view === "mac" && !g.name && e.clientName) g.name = e.clientName;
       g.count++;
-      if (e.action === "failure") g.failures++;
+      if (isBlockedAction(e.action)) g.failures++;
       if (e.time > g.last) g.last = e.time;
       map.set(k, g);
     }
@@ -175,7 +176,7 @@ function FirewallPage() {
 
   const stats = {
     total: firewallEvents.length,
-    failures: firewallEvents.filter((e) => e.action === "failure").length,
+    failures: firewallEvents.filter((e) => isBlockedAction(e.action)).length,
     uniqueClients: new Set(firewallEvents.map((e) => e.clientMac)).size,
     external: tagged.filter((t) => t.ext).length,
   };
@@ -342,7 +343,7 @@ function FirewallPage() {
                 const info = ext ? ipInfo?.[ext] : undefined;
                 void deauthReasonMap;
                 return (
-                  <li key={e.id} className="text-sm">
+                  <li key={e.id} className={cn("text-sm border-l-2", isBlockedAction(e.action) ? "border-severity-error bg-severity-error/[0.03]" : "border-transparent")}>
                     <button onClick={() => setExpanded(open ? null : e.id)} className="w-full px-4 py-3 grid grid-cols-12 gap-3 items-start text-left hover:bg-secondary/30 transition-colors">
                       <div className="col-span-2 flex items-center gap-2 text-xs font-mono">
                         <SeverityDot severity={e.severity} />
@@ -350,7 +351,7 @@ function FirewallPage() {
                         <span className="text-muted-foreground">{relativeTime(e.time)}</span>
                       </div>
                       <div className="col-span-2">
-                        <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-medium", e.action === "failure" ? "bg-severity-error/15 text-severity-error" : "bg-chart-2/15 text-chart-2")}>{chip}</span>
+                        <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-medium", isBlockedAction(e.action) ? "bg-severity-error/15 text-severity-error" : "bg-chart-2/15 text-chart-2")}>{chip}</span>
                         <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">{e.rule}</div>
                       </div>
                       <div className="col-span-3 min-w-0">
