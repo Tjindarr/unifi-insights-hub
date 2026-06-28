@@ -305,16 +305,12 @@ export function recentFirewall(
     where.push(kindPredicate);
   }
   if (opts.action) {
-    where.push("action = @action");
+    where.push("f.action = @action");
     params.action = opts.action;
   }
   if (opts.clientMac) {
-    where.push("client_mac = @mac");
+    where.push("f.client_mac = @mac");
     params.mac = opts.clientMac;
-  }
-  if (opts.q) {
-    where.push("(rule LIKE @like OR client_mac LIKE @like OR vap LIKE @like OR raw_json LIKE @like)");
-    params.like = `%${opts.q}%`;
   }
   if (opts.since != null) {
     where.push("f.time >= @since");
@@ -332,7 +328,7 @@ export function recentFirewall(
         SELECT f.* FROM firewall_events_fts x
         JOIN firewall_events f ON f.id = x.rowid
         WHERE x.firewall_events_fts MATCH @q
-        ${where.length ? "AND " + where.join(" AND ").replace(/\bf\./g, "f.") : ""}
+        ${where.length ? "AND " + where.join(" AND ") : ""}
         ORDER BY f.time DESC LIMIT ${limit}`;
       return db.prepare(sql).all(params);
     }
@@ -346,6 +342,7 @@ export function recentFirewall(
     ORDER BY f.time DESC LIMIT ${limit}`;
   return db.prepare(sql).all(params);
 }
+
 
 
 // Aggregate firewall events into time buckets — used by the chart so the
