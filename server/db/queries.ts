@@ -417,9 +417,9 @@ export function firewallBuckets(
 // of thousands of rows just to count them in the browser.
 export function internalEventBuckets(
   db: Database.Database,
-  opts: { rangeMs?: number; bucketMs: number },
+  opts: { since?: number; until?: number; rangeMs?: number; bucketMs: number },
 ): InternalBucketRow[] {
-  const cacheKey = `internal-categories:${opts.bucketMs}:${opts.rangeMs ?? ""}:${bucketCacheVersion}`;
+  const cacheKey = `internal-categories:${opts.bucketMs}:${opts.rangeMs ?? ""}:${opts.since ?? ""}:${opts.until ?? ""}:${bucketCacheVersion}`;
   const cached = bucketCache.get(cacheKey) as { at: number; rows: InternalBucketRow[] } | undefined;
   const now = Date.now();
   if (cached && now - cached.at < BUCKET_CACHE_TTL_MS) return cached.rows;
@@ -434,9 +434,19 @@ export function internalEventBuckets(
     return [];
   }
 
-  const rangeMs = opts.rangeMs ?? 60 * 60_000;
-  const end = Math.max(now, newest);
-  params.since = Math.floor((end - rangeMs) / opts.bucketMs) * opts.bucketMs;
+  // Bounded window: when both `since` and `until` are provided, honour them
+  // exactly (custom time-range picker on the Internal events page).
+  let timeFilter: string;
+  if (opts.since != null && opts.until != null && opts.until > opts.since) {
+    params.since = Math.floor(opts.since / opts.bucketMs) * opts.bucketMs;
+    params.until = opts.until;
+    timeFilter = "AND time >= @since AND time <= @until";
+  } else {
+    const rangeMs = opts.rangeMs ?? 60 * 60_000;
+    const end = Math.max(now, newest);
+    params.since = Math.floor((end - rangeMs) / opts.bucketMs) * opts.bucketMs;
+    timeFilter = "AND time >= @since";
+  }
 
   const rows = db.prepare(`
     WITH categorised AS (
@@ -455,7 +465,7 @@ export function internalEventBuckets(
         END AS category
       FROM firewall_events
       WHERE ${INTERNAL_WHERE}
-        AND time >= @since
+        ${timeFilter}
     )
     SELECT
       (time / CAST(@bucket AS INTEGER)) * CAST(@bucket AS INTEGER) AS t,
