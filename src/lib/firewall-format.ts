@@ -40,21 +40,83 @@ const AUTH_ALGO: Record<string, string> = {
   eap: "802.1X / EAP",
 };
 
+// Canonical labels. Lookups normalize (lowercase, spaces/hyphens → underscore).
 const EVENT_TYPE_LABEL: Record<string, string> = {
+  // --- STA-TRACKER ---
   association: "Connected",
   sta_assoc: "Connected",
+  sta_associated: "Connected",
   sta_assoc_attempt: "Connection attempt",
+  sta_assoc_failure: "Connection failed",
   sta_auth: "Authenticated",
+  sta_auth_success: "Authentication succeeded",
+  sta_auth_failure: "Authentication failed",
   sta_leave: "Disconnected",
   sta_disconnect: "Disconnected",
+  sta_deauth: "Deauthenticated",
+  sta_disassoc: "Disassociated",
   sta_roam: "Roaming",
-  soft_failure: "Soft failure",
-  "soft failure": "Soft failure",
-  failure: "Authentication failed",
-  auth_failure: "Authentication failed",
+  sta_roamed: "Roaming",
+  sta_roam_attempt: "Roam attempt",
+  sta_ip: "IP acquired",
+  ip_acquired: "IP acquired",
+  dhcp_ack: "DHCP lease granted",
+  // Generic STA-tracker outcomes
   success: "Authentication succeeded",
+  failure: "Authentication failed",
+  soft_failure: "Soft failure",
+  hard_failure: "Hard failure",
   auth_success: "Authentication succeeded",
+  auth_failure: "Authentication failed",
+  // --- UniFi CEF (event names normalized to lower_snake_case) ---
+  wifi_client_connected: "Wi-Fi client connected",
+  wifi_client_disconnected: "Wi-Fi client disconnected",
+  wifi_client_roamed: "Wi-Fi client roamed",
+  wifi_authentication_failure: "Wi-Fi authentication failed",
+  wifi_client_blocked: "Wi-Fi client blocked",
+  wireless_guest_connected: "Guest connected",
+  wireless_guest_disconnected: "Guest disconnected",
+  wired_client_connected: "Wired client connected",
+  wired_client_disconnected: "Wired client disconnected",
+  lan_client_connected: "LAN client connected",
+  lan_client_disconnected: "LAN client disconnected",
+  vpn_client_connected: "VPN client connected",
+  vpn_client_disconnected: "VPN client disconnected",
+  user_logged_in: "User logged in",
+  user_logged_out: "User logged out",
+  admin_login: "Admin login",
+  admin_logout: "Admin logout",
+  admin_login_failed: "Admin login failed",
+  threat_detected: "Threat detected",
+  ips_alert: "IPS alert",
+  ids_alert: "IDS alert",
+  device_adopted: "Device adopted",
+  device_restarted: "Device restarted",
+  device_lost_contact: "Device lost contact",
+  device_connected: "Device connected",
+  device_disconnected: "Device disconnected",
+  wan_transition: "WAN transition",
+  wan_up: "WAN up",
+  wan_down: "WAN down",
+  speedtest_completed: "Speed test completed",
+  firmware_upgrade: "Firmware upgrade",
+  config_changed: "Configuration changed",
+  backup_created: "Backup created",
 };
+
+function normalizeKey(s?: string | null): string {
+  return (s ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+}
+
+function labelFor(eventType?: string | null): string | undefined {
+  const k = normalizeKey(eventType);
+  if (!k) return undefined;
+  if (EVENT_TYPE_LABEL[k]) return EVENT_TYPE_LABEL[k];
+  // Strip common prefix and retry
+  const stripped = k.replace(/^(sta|wifi|wired|lan|wlan|client|user|admin|device)_/, "");
+  if (EVENT_TYPE_LABEL[stripped]) return EVENT_TYPE_LABEL[stripped];
+  return undefined;
+}
 
 function reason(code?: string | number | null): string | null {
   if (code === undefined || code === null || code === "") return null;
