@@ -142,9 +142,9 @@ export const siteEvents: SiteEvent[] = eventSeed.map((e, i) => ({
 // ---- WAN / ISP detail ----
 
 export const wan = {
-  isp: "Bahnhof Fiber 1 Gbps",
-  ipv4: "85.24.146.211",
-  ipv6: "2a02:90:0:c::1f3",
+  isp: "Demo ISP 1 Gbps",
+  ipv4: "203.0.113.5",
+  ipv6: "2001:db8::1f3",
   ddns: "noc.example.com",
   uplink: "1 Gbps",
   latencyHistory: Array.from({ length: 60 }, (_, i) => ({
@@ -173,10 +173,10 @@ export type Ssid = {
   retries: number; // %
 };
 export const ssids: Ssid[] = [
-  { name: "Hemma",        band: "dual", clients: 18, rx: 18_000_000, tx: 4_200_000, retries: 3 },
-  { name: "Hemma-IoT",    band: "2.4",  clients: 11, rx: 220_000,    tx: 90_000,    retries: 7 },
-  { name: "Guest",        band: "5",    clients: 3,  rx: 1_400_000,  tx: 220_000,   retries: 4 },
-  { name: "Hemma-6E",     band: "6",    clients: 5,  rx: 32_000_000, tx: 6_800_000, retries: 1 },
+  { name: "Home",        band: "dual", clients: 18, rx: 18_000_000, tx: 4_200_000, retries: 3 },
+  { name: "Home-IoT",    band: "2.4",  clients: 11, rx: 220_000,    tx: 90_000,    retries: 7 },
+  { name: "Guest",       band: "5",    clients: 3,  rx: 1_400_000,  tx: 220_000,   retries: 4 },
+  { name: "Home-6E",     band: "6",    clients: 5,  rx: 32_000_000, tx: 6_800_000, retries: 1 },
 ];
 
 // ---- Firmware ----
