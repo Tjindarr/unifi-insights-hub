@@ -189,7 +189,7 @@ export function describeFirewallEvent(e: FirewallEvent): string {
 
 /** Short label for the action chip (e.g. "Connected", "Auth fail"). */
 export function shortEventLabel(e: FirewallEvent): string {
-  return EVENT_TYPE_LABEL[e.eventType ?? ""] ?? e.action;
+  return labelFor(e.eventType) ?? e.action;
 }
 
 /**
