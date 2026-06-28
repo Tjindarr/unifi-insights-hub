@@ -13,17 +13,12 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ChangePasswordRouteImport } from './routes/change-password'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.index'
-import { Route as AuthenticatedWanRouteImport } from './routes/_authenticated.wan'
-import { Route as AuthenticatedTopologyRouteImport } from './routes/_authenticated.topology'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated.settings'
 import { Route as AuthenticatedRawRouteImport } from './routes/_authenticated.raw'
-import { Route as AuthenticatedPortsRouteImport } from './routes/_authenticated.ports'
-import { Route as AuthenticatedNetworkRouteImport } from './routes/_authenticated.network'
 import { Route as AuthenticatedLogsRouteImport } from './routes/_authenticated.logs'
 import { Route as AuthenticatedInternalRouteImport } from './routes/_authenticated.internal'
 import { Route as AuthenticatedFirewallRouteImport } from './routes/_authenticated.firewall'
 import { Route as AuthenticatedEventsRouteImport } from './routes/_authenticated.events'
-import { Route as AuthenticatedClientsRouteImport } from './routes/_authenticated.clients'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -44,16 +39,6 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedWanRoute = AuthenticatedWanRouteImport.update({
-  id: '/wan',
-  path: '/wan',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedTopologyRoute = AuthenticatedTopologyRouteImport.update({
-  id: '/topology',
-  path: '/topology',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -62,16 +47,6 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
 const AuthenticatedRawRoute = AuthenticatedRawRouteImport.update({
   id: '/raw',
   path: '/raw',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedPortsRoute = AuthenticatedPortsRouteImport.update({
-  id: '/ports',
-  path: '/ports',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedNetworkRoute = AuthenticatedNetworkRouteImport.update({
-  id: '/network',
-  path: '/network',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedLogsRoute = AuthenticatedLogsRouteImport.update({
@@ -94,42 +69,27 @@ const AuthenticatedEventsRoute = AuthenticatedEventsRouteImport.update({
   path: '/events',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedClientsRoute = AuthenticatedClientsRouteImport.update({
-  id: '/clients',
-  path: '/clients',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/change-password': typeof ChangePasswordRoute
   '/login': typeof LoginRoute
-  '/clients': typeof AuthenticatedClientsRoute
   '/events': typeof AuthenticatedEventsRoute
   '/firewall': typeof AuthenticatedFirewallRoute
   '/internal': typeof AuthenticatedInternalRoute
   '/logs': typeof AuthenticatedLogsRoute
-  '/network': typeof AuthenticatedNetworkRoute
-  '/ports': typeof AuthenticatedPortsRoute
   '/raw': typeof AuthenticatedRawRoute
   '/settings': typeof AuthenticatedSettingsRoute
-  '/topology': typeof AuthenticatedTopologyRoute
-  '/wan': typeof AuthenticatedWanRoute
 }
 export interface FileRoutesByTo {
   '/change-password': typeof ChangePasswordRoute
   '/login': typeof LoginRoute
-  '/clients': typeof AuthenticatedClientsRoute
   '/events': typeof AuthenticatedEventsRoute
   '/firewall': typeof AuthenticatedFirewallRoute
   '/internal': typeof AuthenticatedInternalRoute
   '/logs': typeof AuthenticatedLogsRoute
-  '/network': typeof AuthenticatedNetworkRoute
-  '/ports': typeof AuthenticatedPortsRoute
   '/raw': typeof AuthenticatedRawRoute
   '/settings': typeof AuthenticatedSettingsRoute
-  '/topology': typeof AuthenticatedTopologyRoute
-  '/wan': typeof AuthenticatedWanRoute
   '/': typeof AuthenticatedIndexRoute
 }
 export interface FileRoutesById {
@@ -137,17 +97,12 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/change-password': typeof ChangePasswordRoute
   '/login': typeof LoginRoute
-  '/_authenticated/clients': typeof AuthenticatedClientsRoute
   '/_authenticated/events': typeof AuthenticatedEventsRoute
   '/_authenticated/firewall': typeof AuthenticatedFirewallRoute
   '/_authenticated/internal': typeof AuthenticatedInternalRoute
   '/_authenticated/logs': typeof AuthenticatedLogsRoute
-  '/_authenticated/network': typeof AuthenticatedNetworkRoute
-  '/_authenticated/ports': typeof AuthenticatedPortsRoute
   '/_authenticated/raw': typeof AuthenticatedRawRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
-  '/_authenticated/topology': typeof AuthenticatedTopologyRoute
-  '/_authenticated/wan': typeof AuthenticatedWanRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
@@ -156,49 +111,34 @@ export interface FileRouteTypes {
     | '/'
     | '/change-password'
     | '/login'
-    | '/clients'
     | '/events'
     | '/firewall'
     | '/internal'
     | '/logs'
-    | '/network'
-    | '/ports'
     | '/raw'
     | '/settings'
-    | '/topology'
-    | '/wan'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/change-password'
     | '/login'
-    | '/clients'
     | '/events'
     | '/firewall'
     | '/internal'
     | '/logs'
-    | '/network'
-    | '/ports'
     | '/raw'
     | '/settings'
-    | '/topology'
-    | '/wan'
     | '/'
   id:
     | '__root__'
     | '/_authenticated'
     | '/change-password'
     | '/login'
-    | '/_authenticated/clients'
     | '/_authenticated/events'
     | '/_authenticated/firewall'
     | '/_authenticated/internal'
     | '/_authenticated/logs'
-    | '/_authenticated/network'
-    | '/_authenticated/ports'
     | '/_authenticated/raw'
     | '/_authenticated/settings'
-    | '/_authenticated/topology'
-    | '/_authenticated/wan'
     | '/_authenticated/'
   fileRoutesById: FileRoutesById
 }
@@ -238,20 +178,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/wan': {
-      id: '/_authenticated/wan'
-      path: '/wan'
-      fullPath: '/wan'
-      preLoaderRoute: typeof AuthenticatedWanRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/topology': {
-      id: '/_authenticated/topology'
-      path: '/topology'
-      fullPath: '/topology'
-      preLoaderRoute: typeof AuthenticatedTopologyRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -264,20 +190,6 @@ declare module '@tanstack/react-router' {
       path: '/raw'
       fullPath: '/raw'
       preLoaderRoute: typeof AuthenticatedRawRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/ports': {
-      id: '/_authenticated/ports'
-      path: '/ports'
-      fullPath: '/ports'
-      preLoaderRoute: typeof AuthenticatedPortsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/network': {
-      id: '/_authenticated/network'
-      path: '/network'
-      fullPath: '/network'
-      preLoaderRoute: typeof AuthenticatedNetworkRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/logs': {
@@ -308,43 +220,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEventsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/clients': {
-      id: '/_authenticated/clients'
-      path: '/clients'
-      fullPath: '/clients'
-      preLoaderRoute: typeof AuthenticatedClientsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
   }
 }
 
 interface AuthenticatedRouteChildren {
-  AuthenticatedClientsRoute: typeof AuthenticatedClientsRoute
   AuthenticatedEventsRoute: typeof AuthenticatedEventsRoute
   AuthenticatedFirewallRoute: typeof AuthenticatedFirewallRoute
   AuthenticatedInternalRoute: typeof AuthenticatedInternalRoute
   AuthenticatedLogsRoute: typeof AuthenticatedLogsRoute
-  AuthenticatedNetworkRoute: typeof AuthenticatedNetworkRoute
-  AuthenticatedPortsRoute: typeof AuthenticatedPortsRoute
   AuthenticatedRawRoute: typeof AuthenticatedRawRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
-  AuthenticatedTopologyRoute: typeof AuthenticatedTopologyRoute
-  AuthenticatedWanRoute: typeof AuthenticatedWanRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedClientsRoute: AuthenticatedClientsRoute,
   AuthenticatedEventsRoute: AuthenticatedEventsRoute,
   AuthenticatedFirewallRoute: AuthenticatedFirewallRoute,
   AuthenticatedInternalRoute: AuthenticatedInternalRoute,
   AuthenticatedLogsRoute: AuthenticatedLogsRoute,
-  AuthenticatedNetworkRoute: AuthenticatedNetworkRoute,
-  AuthenticatedPortsRoute: AuthenticatedPortsRoute,
   AuthenticatedRawRoute: AuthenticatedRawRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
-  AuthenticatedTopologyRoute: AuthenticatedTopologyRoute,
-  AuthenticatedWanRoute: AuthenticatedWanRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
 

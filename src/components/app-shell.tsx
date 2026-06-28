@@ -1,9 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
-  Activity, AlertCircle, BarChart3, Cable, Command as CommandIcon, FileText, Flame,
-  LayoutDashboard, LogOut, Network, Plug, Radio, ScrollText, Search, Settings,
-  Shield, Wifi,
-
+  AlertCircle, Command as CommandIcon, FileText, Flame,
+  LayoutDashboard, LogOut, Radio, ScrollText, Search, Settings, Shield,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -15,33 +13,24 @@ import { HealthBanner } from "@/components/health-banner";
 import { CommandPalette } from "@/components/command-palette";
 
 type NavItem = {
-  to: "/" | "/clients" | "/network" | "/wan" | "/topology" | "/ports"
-    | "/firewall" | "/internal" | "/events" | "/logs" | "/raw" | "/settings";
-
+  to: "/" | "/firewall" | "/internal" | "/events" | "/logs" | "/raw" | "/settings";
   label: string;
   icon: typeof LayoutDashboard;
   exact?: boolean;
-  group: "Monitor" | "Network" | "Security" | "System";
+  group: "Monitor" | "Security" | "System";
 };
 
 const nav: NavItem[] = [
   { to: "/",         label: "Overview", icon: LayoutDashboard, exact: true, group: "Monitor" },
-  { to: "/clients",  label: "Clients",  icon: Wifi,                          group: "Monitor" },
-  
-  { to: "/network",  label: "Network",  icon: Activity,                      group: "Network" },
-  { to: "/wan",      label: "WAN",      icon: Cable,                         group: "Network" },
-  { to: "/topology", label: "Topology", icon: Network,                       group: "Network" },
-  { to: "/ports",    label: "Ports",    icon: Plug,                          group: "Network" },
   { to: "/firewall", label: "Firewall", icon: Flame,                         group: "Security" },
   { to: "/internal", label: "Internal", icon: Radio,                         group: "Security" },
   { to: "/events",   label: "Events",   icon: AlertCircle,                   group: "Security" },
   { to: "/logs",     label: "Logs",     icon: ScrollText,                    group: "Security" },
   { to: "/raw",      label: "Raw syslog", icon: FileText,                    group: "Security" },
-
   { to: "/settings", label: "Settings", icon: Settings,                      group: "System" },
 ];
 
-const groups = ["Monitor", "Network", "Security", "System"] as const;
+const groups = ["Monitor", "Security", "System"] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
