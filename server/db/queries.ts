@@ -343,7 +343,7 @@ export function internalEventBuckets(
         AND time >= @since
     )
     SELECT
-      (time / @bucket) * @bucket AS t,
+      (time / CAST(@bucket AS INTEGER)) * CAST(@bucket AS INTEGER) AS t,
       SUM(CASE WHEN category = 'connect' THEN 1 ELSE 0 END) AS connect,
       SUM(CASE WHEN category = 'disconnect' THEN 1 ELSE 0 END) AS disconnect,
       SUM(CASE WHEN category = 'authSuccess' THEN 1 ELSE 0 END) AS authSuccess,
