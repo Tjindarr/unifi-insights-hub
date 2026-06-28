@@ -351,9 +351,14 @@ export function useInternalByBucket(
   categorise: (e: FirewallEvent) => string,
   categories: readonly string[],
   range: TimeRangeKey = "1h",
-  opts: { paused?: boolean } = {},
+  opts: { paused?: boolean; sinceMs?: number; untilMs?: number } = {},
 ) {
-  const spec = bucketSpecForRange(range);
+  const custom = opts.sinceMs != null && opts.untilMs != null && opts.untilMs > opts.sinceMs;
+  const spec = custom
+    ? pickBucketSpec(opts.untilMs! - opts.sinceMs!)
+    : bucketSpecForRange(range);
+  const sinceKey = custom ? opts.sinceMs! : "default";
+  const untilKey = custom ? opts.untilMs! : "now";
   type InternalBucketRow = {
     t: number;
     connect: number;
@@ -364,8 +369,17 @@ export function useInternalByBucket(
     other: number;
   };
   const { data: chartRows, isLive } = useLive<InternalBucketRow[]>(
-    `internal-buckets:${range}`,
-    () => getJson<InternalBucketRow[]>(`/api/internal/buckets?rangeMs=${spec.windowMs}&bucketMs=${spec.bucketMs}`),
+    `internal-buckets:${range}:${sinceKey}:${untilKey}`,
+    () => {
+      const qs = new URLSearchParams();
+      qs.set("rangeMs", String(spec.windowMs));
+      qs.set("bucketMs", String(spec.bucketMs));
+      if (custom) {
+        qs.set("since", String(opts.sinceMs!));
+        qs.set("until", String(opts.untilMs!));
+      }
+      return getJson<InternalBucketRow[]>(`/api/internal/buckets?${qs.toString()}`);
+    },
     [],
     opts.paused ? false : 15_000,
   );
@@ -378,9 +392,9 @@ export function useInternalByBucket(
   }
 
   const wallNow = Date.now();
-  let latest = wallNow;
+  let latest = custom ? opts.untilMs! : wallNow;
   for (const r of chartRows) if (r.t > latest) latest = r.t + spec.bucketMs - 1;
-  const start = latest - spec.windowMs;
+  const start = custom ? opts.sinceMs! : latest - spec.windowMs;
   const first = Math.floor(start / spec.bucketMs) * spec.bucketMs;
   const rowByT = new Map<number, InternalBucketRow>();
   for (const r of chartRows) rowByT.set(r.t, r);
