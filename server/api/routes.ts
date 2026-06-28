@@ -38,6 +38,35 @@ type Deps = {
   threatFeeds: ThreatFeedManager;
 };
 
+// ---- AbuseIPDB quota tracking --------------------------------------------
+// When the daily 1000-request quota is exhausted (HTTP 429), back off all
+// /check calls for 30 minutes before retrying. The state is exposed through
+// /api/collector so the top status bar can surface it to the user.
+const ABUSE_BACKOFF_MS = 30 * 60_000;
+const abuseQuota: {
+  exhaustedAt: number | null;
+  retryAt: number | null;
+  lastError: string | null;
+} = { exhaustedAt: null, retryAt: null, lastError: null };
+
+function abuseQuotaExhausted(): boolean {
+  if (!abuseQuota.retryAt) return false;
+  if (Date.now() >= abuseQuota.retryAt) {
+    abuseQuota.exhaustedAt = null;
+    abuseQuota.retryAt = null;
+    abuseQuota.lastError = null;
+    return false;
+  }
+  return true;
+}
+
+function markAbuseExhausted(reason: string) {
+  const now = Date.now();
+  abuseQuota.exhaustedAt = now;
+  abuseQuota.retryAt = now + ABUSE_BACKOFF_MS;
+  abuseQuota.lastError = reason;
+}
+
 export async function registerApi(
   app: FastifyInstance,
   { db, auth, config, unifi, retention, threatFeeds }: Deps,
