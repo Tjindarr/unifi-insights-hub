@@ -136,10 +136,10 @@ const rand = mulberry32(20260627);
 const pick = <T>(arr: T[]): T => arr[Math.floor(rand() * arr.length)];
 
 const hostnames = [
-  "macbook-niels", "iphone-niels", "ipad-living", "appletv-livingroom",
+  "macbook-owner", "iphone-owner", "ipad-tablet", "appletv-livingroom",
   "thermostat-hall", "doorbell-front", "printer-office", "nas-unraid",
   "synology-backup", "switch-office", "ps5-livingroom", "switch-loft",
-  "iphone-anna", "ipad-anna", "macbook-anna", "echo-kitchen",
+  "iphone-member", "ipad-member", "macbook-member", "echo-kitchen",
   "echo-bedroom", "hue-bridge", "robovac-aria", "tv-bedroom",
   "tv-living", "shelly-garage", "shelly-hall", "homepod-kitchen",
   "rpi-pihole", "tesla-wall", "gaming-rig", "laptop-guest",
@@ -249,13 +249,13 @@ function makeRuleSample(i: number): RuleSample {
   const rule = blocked ? pick(RULES_BLOCK) : pick(RULES_ALLOW);
   const action: FirewallEvent["action"] = blocked ? "drop" : "allow";
   const src = blocked ? pick(SCAN_SRCS) : client.ip;
-  const dst = blocked ? "83.253.187.68" : pick(PUB_DESTS);
+  const dst = blocked ? "203.0.113.1" : pick(PUB_DESTS);
   const sev: Severity = blocked ? "warn" : "notice";
   const descr = blocked ? "[WAN_LOCAL]Block All Traffic" : "[LAN_WAN]Allow All Traffic";
   const inIf = blocked ? "eth3" : "br0";
   const outIf = blocked ? "" : "eth3";
   const ts = new Date(t).toISOString();
-  const host = "Berget-UDR7";
+  const host = "Demo-UDR7";
   const rawLine =
     `<13>${new Date(t).toUTCString().replace("GMT", "")} ${host} ${host} ` +
     `[${rule}] DESCR="${descr}" IN=${inIf} OUT=${outIf} MAC=${client.mac} ` +
@@ -365,12 +365,12 @@ export const syslog: SyslogEntry[] = [
     return {
       id: `ssys${i}`,
       time: t,
-      host: "Berget-UDR7",
+      host: "Demo-UDR7",
       appname: tpl.app,
       facility: "daemon",
       severity: "info" as Severity,
       message: `${tpl.app}[1]: ${tpl.msg}`,
-      raw: `<30>${new Date(t).toUTCString().replace("GMT", "")} Berget-UDR7 ${tpl.app}[1]: ${tpl.msg}`,
+      raw: `<30>${new Date(t).toUTCString().replace("GMT", "")} Demo-UDR7 ${tpl.app}[1]: ${tpl.msg}`,
       isFirewall: false,
     };
   }),
@@ -398,7 +398,7 @@ export const siteHealth: SiteHealth = {
   wanStatus: "up",
   wanLatency: 11,
   wanLoss: 0,
-  isp: "Bahnhof Fiber 1 Gbps",
+  isp: "Demo ISP 1 Gbps",
   uptime: 14 * 24 * 3600 + 7 * 3600,
   cpu: 18,
   memory: 42,
