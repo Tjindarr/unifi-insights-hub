@@ -352,7 +352,88 @@ function FirewallPage() {
         }
       />
 
+      <div className="px-6 pt-4">
+        <div className="rounded-lg border border-border bg-card px-4 py-3 flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Quick range</label>
+            <div className="flex rounded-md border border-border overflow-hidden text-xs">
+              {TIME_RANGES.map((r) => (
+                <button
+                  key={r.key}
+                  onClick={() => { setRange(r.key); clearCustom(); }}
+                  className={cn(
+                    "px-2.5 py-1.5",
+                    !customActive && range === r.key
+                      ? "bg-secondary text-secondary-foreground"
+                      : "text-muted-foreground hover:bg-secondary/60",
+                  )}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">From</label>
+            <Input
+              type="datetime-local"
+              value={customFrom}
+              onChange={(e) => { setCustomFrom(e.target.value); setRangeError(null); }}
+              className="h-8 w-[200px] font-mono text-xs"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">To</label>
+            <Input
+              type="datetime-local"
+              value={customTo}
+              onChange={(e) => { setCustomTo(e.target.value); setRangeError(null); }}
+              className="h-8 w-[200px] font-mono text-xs"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={applyCustom}
+              disabled={!customFrom || !customTo}
+              className="h-8 px-3 rounded-md border border-border bg-secondary text-xs text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50"
+            >
+              Apply
+            </button>
+            {customActive && (
+              <button
+                onClick={clearCustom}
+                className="h-8 px-3 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          <div className="ml-auto text-[11px] text-muted-foreground tabular-nums">
+            {customActive ? (
+              <>
+                {new Date(sinceMs).toLocaleString(undefined, { hour12: false })}
+                {" → "}
+                {untilMs != null ? new Date(untilMs).toLocaleString(undefined, { hour12: false }) : "now"}
+                {" · "}
+                {formatWindow(windowMs)}
+              </>
+            ) : (
+              <>Last {formatWindow(windowMs)} · live up to now</>
+            )}
+          </div>
+
+          {rangeError && (
+            <div className="w-full text-[11px] text-severity-error">{rangeError}</div>
+          )}
+        </div>
+      </div>
+
       <div className="p-6 space-y-4">
+
         <div className="rounded-lg border border-border bg-card">
           <div className="px-4 pt-3 flex items-center justify-between">
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground">Events {bucketLabel}</h2>
