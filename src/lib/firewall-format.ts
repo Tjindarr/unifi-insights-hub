@@ -212,6 +212,13 @@ export function isFirewallRuleEvent(e: FirewallEvent): boolean {
   return !isInternalEvent(e);
 }
 
+/** Actions that represent a blocked / denied / dropped firewall decision. */
+export function isBlockedAction(action?: string | null): boolean {
+  if (!action) return false;
+  const a = action.toLowerCase();
+  return ["block", "deny", "drop", "reject", "failure"].includes(a);
+}
+
 /** Categorise internal events for filtering chips. */
 export type InternalCategory =
   | "connect"
