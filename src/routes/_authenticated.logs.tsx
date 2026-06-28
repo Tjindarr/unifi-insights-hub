@@ -97,6 +97,26 @@ function LogsPage() {
   const [host, setHost] = useState<string | "all">("all");
   const [saved, setSaved] = useState<string[]>([]);
 
+  // Pass the free-text portion of the query to the server so the FTS5 index
+  // narrows the result set before we apply key:value filters client-side.
+  // Bare terms like "172.16" or "deny" hit the index; key:value tokens are
+  // still parsed locally.
+  const serverQ = useMemo(() => {
+    return q
+      .split(/\s+/)
+      .filter((t) => t && !/^(host|sev|app|msg):/i.test(t))
+      .join(" ")
+      .trim();
+  }, [q]);
+
+  const { data: syslog, isLive } = useSyslog({
+    since: sinceMs,
+    until: untilMs,
+    q: serverQ || undefined,
+    limit,
+  });
+
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     try { setSaved(JSON.parse(localStorage.getItem(SAVED_KEY) ?? "[]")); } catch { /* */ }
