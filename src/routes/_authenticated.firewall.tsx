@@ -343,7 +343,7 @@ function FirewallPage() {
                 const info = ext ? ipInfo?.[ext] : undefined;
                 void deauthReasonMap;
                 return (
-                  <li key={e.id} className="text-sm">
+                  <li key={e.id} className={cn("text-sm border-l-2", isBlockedAction(e.action) ? "border-severity-error bg-severity-error/[0.03]" : "border-transparent")}>
                     <button onClick={() => setExpanded(open ? null : e.id)} className="w-full px-4 py-3 grid grid-cols-12 gap-3 items-start text-left hover:bg-secondary/30 transition-colors">
                       <div className="col-span-2 flex items-center gap-2 text-xs font-mono">
                         <SeverityDot severity={e.severity} />
