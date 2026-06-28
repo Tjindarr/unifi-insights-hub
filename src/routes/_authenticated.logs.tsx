@@ -90,7 +90,6 @@ function LogsPage() {
     };
   }, [rangeMinutes, customActive, customFrom, customTo, Math.floor(Date.now() / 60_000)]);
 
-  const { data: syslog, isLive } = useSyslog({ since: sinceMs, until: untilMs, limit });
 
   const [q, setQ] = useState("");
   const [sev, setSev] = useState<Set<Severity>>(new Set(SEVERITIES));
