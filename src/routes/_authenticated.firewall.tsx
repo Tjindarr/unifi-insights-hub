@@ -245,23 +245,6 @@ function FirewallPage() {
 
 
 
-  const grouped = useMemo(() => {
-    if (view === "list") return [];
-    const key = view === "rule" ? "rule" : view === "mac" ? "clientMac" : "srcIp";
-    const map = new Map<string, { key: string; name?: string; count: number; failures: number; last: string }>();
-    for (const e of rows) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const k = ((e as any)[key] as string) ?? "—";
-      const g = map.get(k) ?? { key: k, name: view === "mac" ? e.clientName : undefined, count: 0, failures: 0, last: e.time };
-      if (view === "mac" && !g.name && e.clientName) g.name = e.clientName;
-      g.count++;
-      if (isBlockedAction(e.action)) g.failures++;
-      if (e.time > g.last) g.last = e.time;
-      map.set(k, g);
-    }
-    return [...map.values()].sort((a, b) => b.count - a.count);
-  }, [view, rows]);
-
   const stats = {
     total: firewallEvents.length,
     failures: firewallEvents.filter((e) => isBlockedAction(e.action)).length,
