@@ -143,7 +143,7 @@ export function describeFirewallEvent(e: FirewallEvent): string {
   // ---- STA association / wifi events ----
   if (e.messageType?.startsWith("STA_") || /assoc|leave|deauth|auth/i.test(e.eventType ?? "")) {
     const action =
-      EVENT_TYPE_LABEL[e.eventType ?? ""] ??
+      labelFor(e.eventType) ??
       (e.action === "failure" ? "Wi-Fi authentication failed" : "Wi-Fi event");
 
     const parts: string[] = [action];
