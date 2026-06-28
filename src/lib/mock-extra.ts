@@ -124,8 +124,8 @@ export type SiteEvent = {
   detail: string;
 };
 const eventSeed: Omit<SiteEvent, "id" | "time">[] = [
-  { kind: "admin",    severity: "info",  title: "Admin login",            detail: "user: niels from 192.168.1.45" },
-  { kind: "wan",      severity: "warn",  title: "WAN flap",               detail: "Bahnhof Fiber: 14s downtime" },
+  { kind: "admin",    severity: "info",  title: "Admin login",            detail: "user: admin from 192.168.1.100" },
+  { kind: "wan",      severity: "warn",  title: "WAN flap",               detail: "Demo ISP: 14s downtime" },
   { kind: "firmware", severity: "info",  title: "Firmware available",     detail: "U7-Pro-XG 8.7.0 ready" },
   { kind: "client",   severity: "warn",  title: "Repeated auth failures", detail: "54:32:04:52:12:a4 (iphone-guest) x12" },
   { kind: "system",   severity: "error", title: "Storage low",            detail: "UDR root: 88% used" },
