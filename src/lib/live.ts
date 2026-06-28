@@ -413,18 +413,38 @@ export function useSyslog(params: { q?: string; host?: string; severity?: string
   return { data: normalized, isLive, loading };
 }
 
-export function useSyslogByMinute(rows: SyslogEntry[], isLive: boolean) {
-  if (!isLive) return mockSyslogByMin;
-  const buckets: Record<string, { t: string; info: number; warn: number; error: number }> = {};
-  for (const s of rows) {
-    const d = new Date(s.time); d.setSeconds(0, 0);
-    const t = d.toISOString();
-    buckets[t] ??= { t, info: 0, warn: 0, error: 0 };
-    if (s.severity === "warn" || s.severity === "notice") buckets[t].warn++;
-    else if (s.severity === "error" || s.severity === "critical") buckets[t].error++;
-    else buckets[t].info++;
+// Syslog severity buckets driven only by the global time range — same
+// pattern as useFirewallByMinute, so the chart is independent of the table's
+// row limit and active filters.
+export function useSyslogByMinute(range: TimeRangeKey = "1h", opts: { paused?: boolean } = {}) {
+  const spec = bucketSpecForRange(range);
+  type BucketRow = { t: number; info: number; warn: number; error: number };
+  const { data, isLive } = useLive<BucketRow[]>(
+    `syslog-buckets:${range}`,
+    () => getJson<BucketRow[]>(`/api/syslog/buckets?rangeMs=${spec.windowMs}&bucketMs=${spec.bucketMs}`),
+    [],
+    opts.paused ? false : 15_000,
+  );
+  if (!isLive) return { data: mockSyslogByMin, isLive: false, label: "per minute" };
+
+  const wallNow = Date.now();
+  let latest = wallNow;
+  for (const r of data) if (r.t > latest) latest = r.t + spec.bucketMs - 1;
+  const start = latest - spec.windowMs;
+  const first = Math.floor(start / spec.bucketMs) * spec.bucketMs;
+  const rowByT = new Map<number, BucketRow>();
+  for (const r of data) rowByT.set(r.t, r);
+  const out: { t: string; info: number; warn: number; error: number }[] = [];
+  for (let t = first; t <= latest; t += spec.bucketMs) {
+    const r = rowByT.get(t);
+    out.push({
+      t: new Date(t).toISOString(),
+      info: r?.info ?? 0,
+      warn: r?.warn ?? 0,
+      error: r?.error ?? 0,
+    });
   }
-  return Object.values(buckets).sort((a, b) => a.t.localeCompare(b.t));
+  return { data: out, isLive: true, label: spec.label };
 }
 
 // ---------------------------------------------------------------------------
