@@ -294,8 +294,8 @@ export function firewallBuckets(
   const rows = db.prepare(`
     SELECT
       (time / CAST(@bucket AS INTEGER)) * CAST(@bucket AS INTEGER) AS t,
-      SUM(CASE WHEN action = 'failure' THEN 1 ELSE 0 END) AS failure,
-      SUM(CASE WHEN action != 'failure' THEN 1 ELSE 0 END) AS success
+      SUM(CASE WHEN ${BLOCKED_ACTION_SQL} THEN 1 ELSE 0 END) AS failure,
+      SUM(CASE WHEN ${BLOCKED_ACTION_SQL} THEN 0 ELSE 1 END) AS success
     FROM firewall_events
     ${where.length ? "WHERE " + where.join(" AND ") : ""}
     GROUP BY t
