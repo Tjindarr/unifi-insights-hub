@@ -203,6 +203,10 @@ const FIREWALL_WHERE = `(
   OR rule IN ('UFW','UBNT','FW')
 )`;
 
+// SQL fragment matching isBlockedAction on the frontend: any action that is a
+// blocked / denied / dropped firewall decision should count as a failure.
+const BLOCKED_ACTION_SQL = `lower(action) IN ('block','deny','drop','reject','failure')`;
+
 function kindWhere(kind?: "internal" | "firewall") {
   if (kind === "internal") return INTERNAL_WHERE;
   if (kind === "firewall") return FIREWALL_WHERE;
