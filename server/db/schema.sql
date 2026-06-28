@@ -81,6 +81,32 @@ CREATE INDEX IF NOT EXISTS idx_fw_kind_internal ON firewall_events(time, action)
     AND rule NOT LIKE 'GUEST\_%' ESCAPE '\'
   ));
 
+-- FTS5 mirror for fast full-text search across firewall_events. The previous
+-- implementation used `LIKE %q%` on rule / client_mac / vap / raw_json which
+-- forced a full-table scan on every keystroke. The mirror table keeps search
+-- responsive even with millions of rows. `content=` makes it an external
+-- content table so we don't double-store every column.
+CREATE VIRTUAL TABLE IF NOT EXISTS firewall_events_fts USING fts5(
+  rule, client_mac, src_ip, dst_ip, vap, reason, raw_json,
+  content='firewall_events', content_rowid='id', tokenize='unicode61'
+);
+
+CREATE TRIGGER IF NOT EXISTS firewall_events_ai AFTER INSERT ON firewall_events BEGIN
+  INSERT INTO firewall_events_fts(rowid, rule, client_mac, src_ip, dst_ip, vap, reason, raw_json)
+  VALUES (new.id, new.rule, new.client_mac, new.src_ip, new.dst_ip, new.vap, new.reason, new.raw_json);
+END;
+CREATE TRIGGER IF NOT EXISTS firewall_events_ad AFTER DELETE ON firewall_events BEGIN
+  INSERT INTO firewall_events_fts(firewall_events_fts, rowid, rule, client_mac, src_ip, dst_ip, vap, reason, raw_json)
+  VALUES ('delete', old.id, old.rule, old.client_mac, old.src_ip, old.dst_ip, old.vap, old.reason, old.raw_json);
+END;
+CREATE TRIGGER IF NOT EXISTS firewall_events_au AFTER UPDATE ON firewall_events BEGIN
+  INSERT INTO firewall_events_fts(firewall_events_fts, rowid, rule, client_mac, src_ip, dst_ip, vap, reason, raw_json)
+  VALUES ('delete', old.id, old.rule, old.client_mac, old.src_ip, old.dst_ip, old.vap, old.reason, old.raw_json);
+  INSERT INTO firewall_events_fts(rowid, rule, client_mac, src_ip, dst_ip, vap, reason, raw_json)
+  VALUES (new.id, new.rule, new.client_mac, new.src_ip, new.dst_ip, new.vap, new.reason, new.raw_json);
+END;
+
+
 -- Snapshot of the latest UniFi API state. Single-row tables to keep things simple.
 CREATE TABLE IF NOT EXISTS unifi_clients_snapshot (
   ts   INTEGER NOT NULL,

@@ -17,10 +17,35 @@ export function openDb(path: string) {
   db.pragma("foreign_keys = ON");
   const schema = readFileSync(join(here, "schema.sql"), "utf8");
   db.exec(schema);
+  // Backfill the firewall FTS mirror the first time it appears (for DBs that
+  // pre-date the FTS index). One-shot: cheap once, no-op afterwards.
+  try {
+    const ftsCount = (db.prepare("SELECT COUNT(*) AS n FROM firewall_events_fts").get() as { n: number }).n;
+    const fwCount = (db.prepare("SELECT COUNT(*) AS n FROM firewall_events").get() as { n: number }).n;
+    if (fwCount > 0 && ftsCount === 0) {
+      db.exec("INSERT INTO firewall_events_fts(firewall_events_fts) VALUES('rebuild')");
+    }
+  } catch { /* best-effort */ }
   // Refresh planner stats so partial / composite indexes are picked up.
   try { db.exec("ANALYZE"); } catch { /* best-effort */ }
   return db;
 }
+
+// Translate a free-text search box into a safe FTS5 MATCH expression.
+// - Splits on whitespace into terms
+// - Strips FTS5 syntax characters from each term
+// - Wraps each term in double quotes and adds the prefix `*` operator so
+//   typing "192.168" or "deny" matches as you type without surprising the
+//   user with FTS5 boolean parsing of dots / dashes / colons.
+export function toFtsQuery(input: string): string | null {
+  const tokens = input
+    .split(/\s+/)
+    .map((t) => t.replace(/["()*:^]/g, "").trim())
+    .filter((t) => t.length >= 2);
+  if (!tokens.length) return null;
+  return tokens.map((t) => `"${t}"*`).join(" AND ");
+}
+
 
 // ---- Bucket aggregation cache --------------------------------------------
 // Charts on the dashboard refetch every 15s across multiple clients. The
@@ -166,7 +191,14 @@ export function makeFirewallInsert(db: Database.Database) {
 
 export function recentSyslog(
   db: Database.Database,
-  opts: { q?: string; severity?: string[]; host?: string; firewallOnly?: boolean; limit?: number },
+  opts: {
+    q?: string;
+    severity?: string[];
+    host?: string;
+    firewallOnly?: boolean;
+    limit?: number;
+    since?: number;
+  },
 ) {
   const limit = Math.min(opts.limit ?? 500, 5000);
   const where: string[] = [];
@@ -181,16 +213,23 @@ export function recentSyslog(
     where.push("s.host = @host");
     params.host = opts.host;
   }
+  if (opts.since != null) {
+    where.push("s.time >= @since");
+    params.since = opts.since;
+  }
 
   if (opts.q) {
-    // FTS5 path
-    params.q = opts.q;
-    const sql = `
-      SELECT s.* FROM syslog_fts f
-      JOIN syslog s ON s.id = f.rowid
-      WHERE f.syslog_fts MATCH @q ${where.length ? "AND " + where.join(" AND ") : ""}
-      ORDER BY s.time DESC LIMIT ${limit}`;
-    return db.prepare(sql).all(params);
+    const ftsQuery = toFtsQuery(opts.q);
+    if (ftsQuery) {
+      // FTS5 path — millisecond response across millions of rows.
+      params.q = ftsQuery;
+      const sql = `
+        SELECT s.* FROM syslog_fts f
+        JOIN syslog s ON s.id = f.rowid
+        WHERE f.syslog_fts MATCH @q ${where.length ? "AND " + where.join(" AND ") : ""}
+        ORDER BY s.time DESC LIMIT ${limit}`;
+      return db.prepare(sql).all(params);
+    }
   }
 
   const sql = `
@@ -199,6 +238,7 @@ export function recentSyslog(
     ORDER BY s.time DESC LIMIT ${limit}`;
   return db.prepare(sql).all(params);
 }
+
 
 // SQL fragment that mirrors `isInternalEvent` on the frontend.
 // Matches STA-tracker, Wi-Fi auth / assoc / roam, and UniFi system events
@@ -265,27 +305,45 @@ export function recentFirewall(
     where.push(kindPredicate);
   }
   if (opts.action) {
-    where.push("action = @action");
+    where.push("f.action = @action");
     params.action = opts.action;
   }
   if (opts.clientMac) {
-    where.push("client_mac = @mac");
+    where.push("f.client_mac = @mac");
     params.mac = opts.clientMac;
   }
-  if (opts.q) {
-    where.push("(rule LIKE @like OR client_mac LIKE @like OR vap LIKE @like OR raw_json LIKE @like)");
-    params.like = `%${opts.q}%`;
-  }
   if (opts.since != null) {
-    where.push("time >= @since");
+    where.push("f.time >= @since");
     params.since = opts.since;
   }
+
+  // When a free-text search is present, hit the FTS5 mirror instead of
+  // LIKE %q% which was forcing a full-table scan. Falls back to LIKE only
+  // for very short queries the FTS tokenizer would reject.
+  if (opts.q) {
+    const ftsQuery = toFtsQuery(opts.q);
+    if (ftsQuery) {
+      params.q = ftsQuery;
+      const sql = `
+        SELECT f.* FROM firewall_events_fts x
+        JOIN firewall_events f ON f.id = x.rowid
+        WHERE x.firewall_events_fts MATCH @q
+        ${where.length ? "AND " + where.join(" AND ") : ""}
+        ORDER BY f.time DESC LIMIT ${limit}`;
+      return db.prepare(sql).all(params);
+    }
+    where.push("(f.rule LIKE @like OR f.client_mac LIKE @like OR f.vap LIKE @like OR f.raw_json LIKE @like)");
+    params.like = `%${opts.q}%`;
+  }
+
   const sql = `
-    SELECT * FROM firewall_events
+    SELECT f.* FROM firewall_events f
     ${where.length ? "WHERE " + where.join(" AND ") : ""}
-    ORDER BY time DESC LIMIT ${limit}`;
+    ORDER BY f.time DESC LIMIT ${limit}`;
   return db.prepare(sql).all(params);
 }
+
+
 
 // Aggregate firewall events into time buckets — used by the chart so the
 // "events per minute" view spans the entire selected window, regardless of
