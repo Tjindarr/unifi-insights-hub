@@ -27,7 +27,8 @@ export const Route = createFileRoute("/_authenticated/firewall")({
   component: FirewallPage,
 });
 
-type View = "list" | "rule" | "mac" | "src";
+type ActionFilter = "all" | "allow" | "block" | "drop" | "failure" | "success";
+type ThreatFilter = "all" | "high" | "medium" | "low" | "clean" | "unknown";
 
 const TIER_STYLE: Record<ReturnType<typeof threatTier>, string> = {
   high: "bg-severity-error/20 text-severity-error border-severity-error/30",
