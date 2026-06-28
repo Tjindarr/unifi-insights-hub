@@ -71,21 +71,21 @@ const INTERNAL_KEYS = [
 ] as const;
 
 function OverviewPage() {
-  const { data: o, isLive } = useOverview();
+  // Overview widgets are explicitly NOT auto-refreshed — they only refresh on
+  // a full page reload. Pause every live hook used on this page.
+  const paused = true;
+  const { data: o, isLive } = useOverview({ paused });
   const { range } = useUI();
   const spec = bucketSpecForRange(range);
-  // Snap to a bucket boundary so the query key is stable across renders.
-  // Without this, sinceMs would change every render, making react-query
-  // perpetually "loading" and falling back to demo data.
   const sinceMs = Math.floor((Date.now() - spec.windowMs) / spec.bucketMs) * spec.bucketMs;
 
   // Rows for breakdowns/top-talkers; charts use the dedicated bucket endpoints.
-  const { data: fwRows } = useFirewall({ kind: "firewall", limit: 10000, since: sinceMs });
-  const { data: intRows } = useFirewall({ kind: "internal", limit: 10000, since: sinceMs });
+  const { data: fwRows } = useFirewall({ kind: "firewall", limit: 10000, since: sinceMs, paused });
+  const { data: intRows } = useFirewall({ kind: "internal", limit: 10000, since: sinceMs, paused });
 
-  const { data: fwByBucket, label: fwLabel } = useFirewallByMinute(range);
+  const { data: fwByBucket, label: fwLabel } = useFirewallByMinute(range, { paused });
   const { data: intByBucket, label: intLabel } = useInternalByBucket(
-    internalCategory, INTERNAL_KEYS, range,
+    internalCategory, INTERNAL_KEYS, range, { paused },
   );
 
   const firewall = useMemo(() => fwRows.filter(isFirewallRuleEvent), [fwRows]);
@@ -346,7 +346,7 @@ function OverviewPage() {
               </ResponsiveContainer>
             )}
           </ChartCard>
-          <ParsingHealth windowMin={60} />
+          <ParsingHealth windowMin={60} paused={paused} />
         </div>
       </div>
     </div>

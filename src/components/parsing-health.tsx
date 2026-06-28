@@ -35,8 +35,8 @@ function Stat({ label, value, icon: Icon, tone }: StatProps) {
   );
 }
 
-export function ParsingHealth({ windowMin = 60 }: { windowMin?: number }) {
-  const { data, isLive } = useParseHealth(windowMin);
+export function ParsingHealth({ windowMin = 60, paused = false }: { windowMin?: number; paused?: boolean }) {
+  const { data, isLive } = useParseHealth(windowMin, { paused });
 
   const chartData = useMemo(
     () =>
