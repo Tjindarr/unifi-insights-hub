@@ -1,8 +1,7 @@
 services:
-  unifi-dashboard:
-    build: .
-    image: unifi-dashboard:latest
-    container_name: unifi-dashboard
+  firesight:
+    image: ghcr.io/tjindarr/unifi-insights-hub:latest
+    container_name: firesight
     restart: unless-stopped
     # Host network preserves the syslog source IP (recommended on Unraid).
     # If you'd rather use bridge mode, comment out network_mode and uncomment
@@ -18,7 +17,7 @@ services:
     volumes:
       # Holds the SQLite DB AND config.json (UniFi credentials, retention,
       # auto-generated session secret). Survives image updates.
-      - /mnt/user/appdata/unifi-dashboard:/data
+      - /mnt/user/appdata/firesight:/data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8095/api/health"]
       interval: 30s
