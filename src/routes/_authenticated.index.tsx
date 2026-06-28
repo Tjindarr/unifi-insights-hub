@@ -242,85 +242,53 @@ function OverviewPage() {
           />
         </div>
 
-        {/* Events per minute charts */}
+        {/* Events per minute charts (same widget as Firewall / Internal pages) */}
         <div className="grid lg:grid-cols-2 gap-6">
-          <ChartCard title="Firewall events" subtitle={fwLabel}>
+          <BucketCard title="Firewall events" subtitle={fwLabel}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={fwByBucket} stackOffset="sign">
                 <CartesianGrid stroke="var(--color-border)" strokeDasharray="2 4" vertical={false} />
                 <XAxis dataKey="t" tickFormatter={(t) => formatTime(t)} tick={{ fill: C.muted, fontSize: 10 }} stroke="var(--color-border)" minTickGap={50} />
-                <YAxis tick={{ fill: C.muted, fontSize: 10 }} stroke="var(--color-border)" width={30} />
+                <YAxis tick={{ fill: C.muted, fontSize: 10 }} stroke="var(--color-border)" width={30} allowDecimals={false} />
                 <Tooltip contentStyle={tooltipStyle} labelFormatter={(t) => formatTime(t)} />
                 <Bar dataKey="success" stackId="a" name="Allowed" fill={C.allow} />
                 <Bar dataKey="failure" stackId="a" name="Blocked" fill={C.block} />
               </BarChart>
             </ResponsiveContainer>
-          </ChartCard>
+          </BucketCard>
 
-          <ChartCard title="Internal events" subtitle={intLabel}>
+          <BucketCard title="Internal events" subtitle={intLabel}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={intByBucket}>
                 <CartesianGrid stroke="var(--color-border)" strokeDasharray="2 4" vertical={false} />
                 <XAxis dataKey="t" tickFormatter={(t) => formatTime(t)} tick={{ fill: C.muted, fontSize: 10 }} stroke="var(--color-border)" minTickGap={50} />
-                <YAxis tick={{ fill: C.muted, fontSize: 10 }} stroke="var(--color-border)" width={30} />
+                <YAxis tick={{ fill: C.muted, fontSize: 10 }} stroke="var(--color-border)" width={30} allowDecimals={false} />
                 <Tooltip contentStyle={tooltipStyle} labelFormatter={(t) => formatTime(t)} />
                 {INTERNAL_KEYS.map((k) => (
                   <Bar key={k} dataKey={k} stackId="a" name={INTERNAL_LABEL[k]} fill={INTERNAL_COLOR[k]} />
                 ))}
               </BarChart>
             </ResponsiveContainer>
-          </ChartCard>
+          </BucketCard>
         </div>
 
-        {/* Pies */}
+        {/* Distribution donuts with side legend (no overlap) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <ChartCard title="Firewall actions" subtitle="Distribution" height="h-56">
-            {actionBreakdown.length === 0 ? <Empty /> : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={actionBreakdown} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70} paddingAngle={2}>
-                    {actionBreakdown.map((e, i) => (
-                      <Cell key={i} fill={ACTION_COLOR[e.name] ?? C.other} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </ChartCard>
-
-          <ChartCard title="Internal categories" subtitle="Distribution" height="h-56">
-            {internalBreakdown.length === 0 ? <Empty /> : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={internalBreakdown} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70} paddingAngle={2}>
-                    {internalBreakdown.map((e, i) => (
-                      <Cell key={i} fill={INTERNAL_COLOR[e.key] ?? C.other} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </ChartCard>
-
-          <ChartCard title="External IP threat level" subtitle={`${externalIps.length} unique`} height="h-56">
-            {threatBreakdown.length === 0 ? <Empty /> : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={threatBreakdown} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70} paddingAngle={2}>
-                    {threatBreakdown.map((e, i) => (
-                      <Cell key={i} fill={THREAT_COLOR[e.name] ?? C.muted} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </ChartCard>
+          <DonutCard
+            title="Firewall actions"
+            subtitle="Distribution"
+            data={actionBreakdown.map((d) => ({ name: d.name, value: d.value, color: ACTION_COLOR[d.name] ?? C.other }))}
+          />
+          <DonutCard
+            title="Internal categories"
+            subtitle="Distribution"
+            data={internalBreakdown.map((d) => ({ name: d.name, value: d.value, color: INTERNAL_COLOR[d.key] ?? C.other }))}
+          />
+          <DonutCard
+            title="External IP threat level"
+            subtitle={`${externalIps.length} unique`}
+            data={threatBreakdown.map((d) => ({ name: d.name, value: d.value, color: THREAT_COLOR[d.name] ?? C.muted }))}
+          />
         </div>
 
         {/* Top tables */}
