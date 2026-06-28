@@ -50,6 +50,23 @@ export function ParsingHealth({ windowMin = 60, paused = false }: { windowMin?: 
     [data.buckets],
   );
 
+  // Anchor the X-axis to the requested window so the chart always spans the
+  // full `windowMin` even when only a few recent buckets have non-zero values.
+  // Without this the category-scale axis collapses to the buckets that
+  // actually contain data and the widget looks like it only covers a few
+  // minutes.
+  const { xDomain, xTicks } = useMemo(() => {
+    const bucketMs = 60_000;
+    const now = Date.now();
+    const end = Math.floor(now / bucketMs) * bucketMs;
+    const start = end - (windowMin - 1) * bucketMs;
+    const step = Math.max(1, Math.round(windowMin / 6)) * bucketMs;
+    const ticks: number[] = [];
+    for (let t = start; t <= end; t += step) ticks.push(t);
+    if (ticks[ticks.length - 1] !== end) ticks.push(end);
+    return { xDomain: [start, end + bucketMs] as [number, number], xTicks: ticks };
+  }, [windowMin, data.buckets]);
+
   const w = data.windowTotals;
 
   return (
@@ -77,10 +94,14 @@ export function ParsingHealth({ windowMin = 60, paused = false }: { windowMin?: 
             <CartesianGrid stroke="var(--color-border)" strokeDasharray="2 4" vertical={false} />
             <XAxis
               dataKey="t"
-              tickFormatter={(t) => formatTime(t)}
+              type="number"
+              scale="time"
+              domain={xDomain}
+              ticks={xTicks}
+              tickFormatter={(t) => formatTime(t as number)}
               tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }}
               stroke="var(--color-border)"
-              minTickGap={40}
+              minTickGap={24}
             />
             <YAxis
               allowDecimals={false}
@@ -97,10 +118,10 @@ export function ParsingHealth({ windowMin = 60, paused = false }: { windowMin?: 
               }}
               labelFormatter={(v) => formatTime(v as number)}
             />
-            <Bar dataKey="accepted" stackId="a" fill="hsl(160 70% 45%)" name="Accepted" />
-            <Bar dataKey="tzSkewed" stackId="a" fill="hsl(38 90% 55%)" name="TZ skewed" />
-            <Bar dataKey="cefFailures" stackId="a" fill="hsl(290 60% 60%)" name="CEF failures" />
-            <Bar dataKey="rejected" stackId="a" fill="hsl(0 75% 60%)" name="Rejected" />
+            <Bar dataKey="accepted" stackId="a" fill="hsl(160 70% 45%)" name="Accepted" maxBarSize={8} />
+            <Bar dataKey="tzSkewed" stackId="a" fill="hsl(38 90% 55%)" name="TZ skewed" maxBarSize={8} />
+            <Bar dataKey="cefFailures" stackId="a" fill="hsl(290 60% 60%)" name="CEF failures" maxBarSize={8} />
+            <Bar dataKey="rejected" stackId="a" fill="hsl(0 75% 60%)" name="Rejected" maxBarSize={8} />
           </BarChart>
         </ResponsiveContainer>
       </div>
