@@ -169,7 +169,25 @@ In the UniFi console:
 
 Within ~10 seconds you'll see events in **Logs** and **Firewall**.
 
+### Enable syslog on the built-in firewall rules
+
+To see both outbound internet traffic and inbound connection attempts, turn
+on logging for UniFi's two default firewall rules:
+
+1. **Settings → Security → Firewall & Port Forwarding**
+2. Open the rule named **Allow All Traffic** (this is the default rule that
+   lets all internal traffic go out to the internet).
+3. Click **Edit** → enable **Syslog** → **Save**.
+4. Open the rule named **Block All Traffic** (this is the default rule that
+   blocks all incoming traffic on the external address).
+5. Click **Edit** → enable **Syslog** → **Save**.
+
+With these two rules logging, FireSight will show every connection your
+clients make to the internet and every inbound probe blocked by the router.
+
 ### Read-only UniFi user (optional but recommended)
+
+
 
 For client-name resolution in firewall logs and wired/wireless counts on the
 Overview, create a UniFi **local** read-only admin:
