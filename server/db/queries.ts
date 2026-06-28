@@ -284,7 +284,7 @@ export function firewallBuckets(
 
   const rows = db.prepare(`
     SELECT
-      (time / @bucket) * @bucket AS t,
+      (time / CAST(@bucket AS INTEGER)) * CAST(@bucket AS INTEGER) AS t,
       SUM(CASE WHEN action = 'failure' THEN 1 ELSE 0 END) AS failure,
       SUM(CASE WHEN action != 'failure' THEN 1 ELSE 0 END) AS success
     FROM firewall_events
