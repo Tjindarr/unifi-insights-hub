@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ChevronRight, Download, Globe, Pause, Play, Search, ShieldAlert } from "lucide-react";
+import { ChevronRight, Pause, Play, Search, ShieldAlert } from "lucide-react";
 
 import { PageHeader, SeverityDot } from "@/components/app-shell";
 import { DemoBadge } from "@/components/demo-badge";
@@ -95,7 +95,6 @@ function FirewallPage() {
   const [action, setAction] = useState<ActionFilter>("all");
   const [threat, setThreat] = useState<ThreatFilter>("all");
   const [view, setView] = useState<View>("list");
-  const [internetOnly, setInternetOnly] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   // Pre-filter: this page only deals with iptables / firewall-rule hits.
@@ -119,7 +118,6 @@ function FirewallPage() {
       return a === action;
     };
     return tagged.filter(({ event: e, ext }) => {
-      if (internetOnly && !ext) return false;
       if (!actionMatch(e.action)) return false;
       if (proto !== "all" && (e.proto ?? "").toLowerCase() !== proto) return false;
       if (sq && !(e.srcIp ?? "").toLowerCase().includes(sq)) return false;
@@ -136,7 +134,7 @@ function FirewallPage() {
         ext?.includes(ql)
       );
     });
-  }, [tagged, q, srcQ, dstQ, portQ, proto, action, internetOnly]);
+  }, [tagged, q, srcQ, dstQ, portQ, proto, action]);
 
 
   // Unique external IPs in the prelim set — used to batch GeoIP/threat lookups.
@@ -217,23 +215,6 @@ function FirewallPage() {
               {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
               {paused ? "Paused" : "Live"}
             </button>
-            <button onClick={() => exportNdjson("firewall", rows)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary/60">
-              <Download className="h-3.5 w-3.5" />NDJSON
-            </button>
-
-            <button
-              onClick={() => setInternetOnly((v) => !v)}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs transition-colors",
-                internetOnly
-                  ? "border-chart-2/40 bg-chart-2/15 text-chart-2"
-                  : "border-border text-muted-foreground hover:bg-secondary/60",
-              )}
-              title="Show only events that touch a public IP"
-            >
-              <Globe className="h-3.5 w-3.5" />
-              Internet only
-            </button>
             <div className="flex rounded-md border border-border overflow-hidden text-xs">
               {(["list", "rule", "mac", "src"] as const).map((v) => (
                 <button key={v} onClick={() => setView(v)} className={cn("px-2.5 py-1.5 capitalize", view === v ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-secondary/60")}>
@@ -299,20 +280,6 @@ function FirewallPage() {
           </div>
         </div>
 
-        {internetOnly && rows.length === 0 && (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
-            <div className="font-medium text-amber-100">No internet traffic in syslog</div>
-            <p className="mt-1 text-amber-200/80 leading-relaxed">
-              The UDR only forwards firewall events for rules with <strong>Logging</strong> enabled.
-              In the UniFi Network app, open{" "}
-              <strong>Settings → Security → Traffic &amp; Firewall Rules → Internet</strong>,
-              edit a <strong>Block</strong> rule (e.g. the default "Block External → Internal"),
-              and toggle Logging on. Events should start appearing within ~10 seconds of the
-              next matching connection. See <em>Settings → Firewall logging on the UDR</em> for
-              the full guide.
-            </p>
-          </div>
-        )}
 
         {view !== "list" ? (
           <div className="rounded-lg border border-border bg-card overflow-hidden">
