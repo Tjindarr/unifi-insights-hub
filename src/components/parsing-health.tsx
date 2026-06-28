@@ -118,10 +118,10 @@ export function ParsingHealth({ windowMin = 60, paused = false }: { windowMin?: 
               }}
               labelFormatter={(v) => formatTime(v as number)}
             />
-            <Bar dataKey="accepted" stackId="a" fill="hsl(160 70% 45%)" name="Accepted" />
-            <Bar dataKey="tzSkewed" stackId="a" fill="hsl(38 90% 55%)" name="TZ skewed" />
-            <Bar dataKey="cefFailures" stackId="a" fill="hsl(290 60% 60%)" name="CEF failures" />
-            <Bar dataKey="rejected" stackId="a" fill="hsl(0 75% 60%)" name="Rejected" />
+            <Bar dataKey="accepted" stackId="a" fill="hsl(160 70% 45%)" name="Accepted" maxBarSize={8} />
+            <Bar dataKey="tzSkewed" stackId="a" fill="hsl(38 90% 55%)" name="TZ skewed" maxBarSize={8} />
+            <Bar dataKey="cefFailures" stackId="a" fill="hsl(290 60% 60%)" name="CEF failures" maxBarSize={8} />
+            <Bar dataKey="rejected" stackId="a" fill="hsl(0 75% 60%)" name="Rejected" maxBarSize={8} />
           </BarChart>
         </ResponsiveContainer>
       </div>
