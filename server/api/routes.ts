@@ -499,16 +499,18 @@ export async function registerApi(
 
   // ---- logs (always real syslog DB; demo mode handled on client) ----
   app.get<{
-    Querystring: { q?: string; host?: string; severity?: string; limit?: string };
+    Querystring: { q?: string; host?: string; severity?: string; limit?: string; since?: string };
   }>("/api/logs", async (req) => {
-    const { q, host, severity, limit } = req.query;
+    const { q, host, severity, limit, since } = req.query;
     return recentSyslog(db, {
       q: q || undefined,
       host: host || undefined,
       severity: severity ? severity.split(",") : undefined,
       limit: limit ? Number(limit) : 500,
+      since: since ? Number(since) : undefined,
     });
   });
+
 
   // ---- firewall ----
   app.get<{
