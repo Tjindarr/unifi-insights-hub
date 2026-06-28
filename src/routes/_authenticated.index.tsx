@@ -74,7 +74,10 @@ function OverviewPage() {
   const { data: o, isLive } = useOverview();
   const { range } = useUI();
   const spec = bucketSpecForRange(range);
-  const sinceMs = Date.now() - spec.windowMs;
+  // Snap to a bucket boundary so the query key is stable across renders.
+  // Without this, sinceMs would change every render, making react-query
+  // perpetually "loading" and falling back to demo data.
+  const sinceMs = Math.floor((Date.now() - spec.windowMs) / spec.bucketMs) * spec.bucketMs;
 
   // Rows for breakdowns/top-talkers; charts use the dedicated bucket endpoints.
   const { data: fwRows } = useFirewall({ kind: "firewall", limit: 10000, since: sinceMs });
