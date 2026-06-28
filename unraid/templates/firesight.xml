@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Container version="2">
+  <Name>FireSight</Name>
+  <Repository>ghcr.io/tjindarr/unifi-insights-hub:latest</Repository>
+  <Registry>https://ghcr.io/tjindarr/unifi-insights-hub</Registry>
+  <Branch>
+    <Tag>latest</Tag>
+    <TagDescription>Latest stable build from main</TagDescription>
+  </Branch>
+
+  <Network>host</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+
+  <Icon>https://raw.githubusercontent.com/Tjindarr/unifi-insights-hub/main/unraid/icon.png</Icon>
+  <WebUI>http://[IP]:[PORT:8095]</WebUI>
+
+  <Overview>
+FireSight is a self-hosted firewall log analyzer and syslog dashboard for UniFi routers (UDR / UDM / UXG / Cloud Gateway).
+
+Acts as a syslog server on UDP/514, parses UniFi firewall, STA-tracker and internal events, enriches them with GeoIP and threat intelligence (AbuseIPDB + offline FireHOL/Spamhaus blocklists), and serves a fast dark NOC-style web UI with FTS5-backed search.
+
+Single container — no separate database, no extra services. SQLite (WAL + FTS5) keeps searches snappy even on large log volumes.
+
+Features:
+  - Syslog UDP/514 listener with UniFi RFC3164 + CEF parser
+  - Real-time firewall log viewer with pause/resume, country + ASN, threat level
+  - Internal events viewer (Wi-Fi roam, auth, DHCP, admin actions) in plain English
+  - Full-text search across raw syslog (SQLite FTS5)
+  - Per-minute event charts driven by the global time range
+  - Pie charts for actions, categories, and external IP threat level
+  - Optional UniFi API polling (read-only) for client name resolution
+  - Configurable retention by age + DB size cap, hourly VACUUM
+  - First-login forced password change, session cookie auth
+  - Local timezone support via the TZ env var (router timestamps lack a TZ field)
+  </Overview>
+
+  <Support>https://github.com/Tjindarr/unifi-insights-hub/issues</Support>
+  <Project>https://github.com/Tjindarr/unifi-insights-hub</Project>
+  <TemplateURL>https://raw.githubusercontent.com/Tjindarr/unifi-insights-hub/main/unraid/templates/firesight.xml</TemplateURL>
+  <ReadMe>https://raw.githubusercontent.com/Tjindarr/unifi-insights-hub/main/README.md</ReadMe>
+
+  <Category>Tools:System Network:Other Status:Stable</Category>
+  <ExtraSearchTerms>unifi syslog firewall log analyzer udr udm ubiquiti security network noc</ExtraSearchTerms>
+
+  <Requires>A UniFi router (UDR/UDM/UXG/Cloud Gateway) configured to send remote syslog to this container on UDP/514. Optional: a read-only UniFi local user for API polling.</Requires>
+
+  <Changes>### 2026-06-28
+- First Unraid Community Apps release of FireSight
+- Firewall, internal, events, logs and raw-syslog views
+- GeoIP + AbuseIPDB + offline threat-feed enrichment
+- SQLite FTS5 search, retention by age + DB size, VACUUM scheduler</Changes>
+  <Date>2026-06-28</Date>
+
+  <MinVer>6.10</MinVer>
+  <License>MIT</License>
+
+  <Screenshot>https://raw.githubusercontent.com/Tjindarr/unifi-insights-hub/main/screenshots/overview.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/Tjindarr/unifi-insights-hub/main/screenshots/firewall.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/Tjindarr/unifi-insights-hub/main/screenshots/internal.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/Tjindarr/unifi-insights-hub/main/screenshots/events.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/Tjindarr/unifi-insights-hub/main/screenshots/logs.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/Tjindarr/unifi-insights-hub/main/screenshots/raw.png</Screenshot>
+
+  <Config Name="WebUI Port" Target="8095" Default="8095" Mode="tcp"
+          Description="HTTP port for the FireSight web UI. Host networking is used so this also binds on the host."
+          Type="Port" Display="always" Required="true" Mask="false">8095</Config>
+
+  <Config Name="Syslog UDP Port" Target="514" Default="514" Mode="udp"
+          Description="UDP port the syslog listener binds to. Point your UniFi router's remote syslog here."
+          Type="Port" Display="always" Required="true" Mask="false">514</Config>
+
+  <Config Name="Appdata" Target="/data" Default="/mnt/user/appdata/firesight" Mode="rw"
+          Description="Persistent storage. Holds the SQLite database (unifi.db) and config.json (UniFi credentials, retention settings, auto-generated session secret)."
+          Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/firesight</Config>
+
+  <Config Name="TZ" Target="TZ" Default="Europe/Stockholm"
+          Description="Timezone for interpreting UniFi syslog timestamps (RFC3164 has no TZ field). Must match the timezone your router is configured in."
+          Type="Variable" Display="always" Required="true" Mask="false">Europe/Stockholm</Config>
+
+  <Config Name="Default Admin User" Target="DASH_USER" Default="admin"
+          Description="Seed username for the first login. You'll be forced to change the password on first login."
+          Type="Variable" Display="advanced" Required="false" Mask="false">admin</Config>
+
+  <Config Name="Default Admin Password" Target="DASH_PASSWORD" Default="admin"
+          Description="Seed password for the first login (forced change on first login)."
+          Type="Variable" Display="advanced" Required="false" Mask="true">admin</Config>
+
+  <Config Name="Retention Days (Syslog)" Target="RETENTION_DAYS" Default="30"
+          Description="Drop syslog rows older than N days. Can also be changed from Settings in the UI."
+          Type="Variable" Display="advanced" Required="false" Mask="false">30</Config>
+
+  <Config Name="Max DB Size (MB)" Target="RETENTION_MAX_DB_MB" Default="2048"
+          Description="Hard cap on on-disk SQLite size. When exceeded, the oldest syslog rows are pruned to fit."
+          Type="Variable" Display="advanced" Required="false" Mask="false">2048</Config>
+
+</Container>

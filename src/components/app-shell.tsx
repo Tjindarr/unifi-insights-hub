@@ -1,7 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   AlertCircle, Command as CommandIcon, FileText, Flame,
-  LayoutDashboard, LogOut, Radio, ScrollText, Search, Settings, Shield,
+  LayoutDashboard, LogOut, Radio, ScrollText, Search, Settings,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -46,12 +46,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen grid grid-cols-[220px_1fr] bg-background text-foreground">
       <aside className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col">
         <div className="px-4 py-4 flex items-center gap-2 border-b border-sidebar-border">
-          <div className="h-8 w-8 rounded-md bg-primary/15 flex items-center justify-center">
-            <Shield className="h-4 w-4 text-primary" />
+          <div className="h-8 w-8 rounded-md bg-primary/15 flex items-center justify-center ring-1 ring-primary/30">
+            <Flame className="h-4 w-4 text-primary" />
           </div>
           <div className="leading-tight">
-            <div className="text-sm font-semibold tracking-tight">UniFi</div>
-            <div className="text-[11px] text-muted-foreground">Dashboard</div>
+            <div className="text-sm font-semibold tracking-tight">FireSight</div>
+            <div className="text-[11px] text-muted-foreground">Firewall analytics</div>
           </div>
           <div className="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-chart-2 animate-pulse" />

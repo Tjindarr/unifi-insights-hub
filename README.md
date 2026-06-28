@@ -1,160 +1,293 @@
-# UniFi Dashboard
+# FireSight
 
-Self-hosted, single-container dashboard for a UniFi Dream Router (or any UniFi
-controller). Acts as a **syslog server** for your UniFi devices, polls the
-controller's local API for live client/device/health data, stores everything in
-an embedded SQLite database with FTS5 full-text search, and serves a dark NOC-
-style web UI.
+> Self-hosted **firewall log analyzer** and syslog dashboard for UniFi routers.
+> One container. No external services. SQLite + FTS5 under the hood for fast
+> search even on weeks of logs.
 
-Designed to run as a single Docker container on Unraid with no other moving
-parts.
+<p align="center">
+  <img src="screenshots/overview.png" alt="FireSight overview dashboard" width="900" />
+</p>
 
-## What it shows
+FireSight acts as a **syslog server** for your UniFi Dream Router / UDM / UXG /
+Cloud Gateway. It parses UniFi's firewall, STA-tracker and internal events,
+enriches external IPs with country / ASN / threat-level data, and serves a
+dark NOC-style web UI with first-class full-text search.
 
-- **Overview** — total clients, wired vs wireless split, live WAN throughput,
-  average client satisfaction, top talkers by RX/TX.
-- **Clients** — sortable, searchable client table (hostname, MAC, IP, AP /
-  switch port, signal, satisfaction, RX/TX rate + totals, last-seen).
-- **Network** — WAN status, latency, gateway CPU/memory, per-AP airtime,
-  channel utilization (2.4 / 5 / 6 GHz), client load.
-- **Firewall** — parsed firewall + STA-tracker events with severity, reason
-  decoding, client name lookup, raw JSON drill-down, filters by action and
-  free-text.
-- **Logs** — raw syslog from all UniFi devices, FTS5-backed search, severity
-  and host facets.
-- **Settings** — environment-variable reference and UniFi setup instructions.
+It's designed to run as a **single Docker container on Unraid** with one
+volume — and nothing else.
+
+---
+
+## Table of contents
+
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Architecture](#architecture)
+- [Install — Unraid (Community Apps)](#install--unraid-community-apps)
+- [Install — Docker / Docker Compose](#install--docker--docker-compose)
+- [Configure your UniFi router](#configure-your-unifi-router)
+- [First login](#first-login)
+- [Timezone handling](#timezone-handling)
+- [UniFi API (optional, read-only)](#unifi-api-optional-read-only)
+- [Threat intelligence](#threat-intelligence)
+- [Retention & cleanup](#retention--cleanup)
+- [Environment variables](#environment-variables)
+- [Updating](#updating)
+- [Development](#development)
+- [License](#license)
+
+---
+
+## Features
+
+- **Syslog UDP/514 listener** for UniFi devices (RFC3164 + CEF).
+- **Firewall view** — parsed `[WAN_LOCAL]`, `[LAN_IN]`, … rules, action chips,
+  per-row country flag + threat level, red banner on `deny` / `drop` /
+  `reject` / `block`, pause/resume so your search view doesn't get yanked
+  out from under you.
+- **Internal view** — Wi-Fi roam, auth, DHCP, admin actions translated into
+  plain English instead of `{ADMIN} {PLATFORM} sta_assoc_tracker`.
+- **Events view** — high-level event timeline with severity colouring.
+- **Logs view** — full-text search over raw syslog via SQLite FTS5, with a
+  dedicated *messages-per-minute* chart driven by the global time range.
+- **Raw syslog view** — paste-friendly inspector for any single message.
+- **Overview** — wired/wireless client counts (from UniFi API), per-minute
+  firewall + internal event charts, donut breakdown of firewall actions /
+  internal categories / external-IP threat level, parsing-health widget.
+- **GeoIP & threat enrichment** — `ip-api.com` for country/ASN,
+  [AbuseIPDB](https://www.abuseipdb.com/) for reputation, and **offline**
+  IP/CIDR feeds (FireHOL, Spamhaus) matched in SQLite.
+- **Retention** — by age, by firewall-age, and by hard DB size cap, with
+  scheduled `VACUUM`.
+- **Parsing health** — counts of accepted / rejected / TZ-skewed / CEF-failed
+  events over time so you notice when something stops parsing.
+- **Auth** — session cookie, forced password change on first login.
+
+## Screenshots
+
+| Overview | Firewall |
+| --- | --- |
+| ![Overview](screenshots/overview.png) | ![Firewall](screenshots/firewall.png) |
+
+| Internal | Events |
+| --- | --- |
+| ![Internal](screenshots/internal.png) | ![Events](screenshots/events.png) |
+
+| Logs (FTS5) | Raw syslog |
+| --- | --- |
+| ![Logs](screenshots/logs.png) | ![Raw syslog](screenshots/raw.png) |
 
 ## Architecture
 
-One container does it all:
-
 ```
-┌─────────────── unifi-dashboard ───────────────┐
-│  UDP :514  → syslog parser → SQLite + FTS5    │
-│  HTTP :3000 → REST + WS + static React UI     │
-│  worker    → UniFi API poller (every 10s)     │
-│  volume    → /data/unifi.db                   │
-└───────────────────────────────────────────────┘
+┌─────────────────────── firesight ───────────────────────┐
+│  UDP :514   → parser → enrich → SQLite (WAL + FTS5)     │
+│  HTTP :8095 → REST + WS + static React UI               │
+│  worker     → UniFi controller poll (read-only, 10s)    │
+│  worker     → threat-feed refresh (FireHOL/Spamhaus)    │
+│  volume     → /data  (unifi.db + config.json)           │
+└─────────────────────────────────────────────────────────┘
 ```
 
 Frontend: React + TanStack Router + Tailwind v4 + Recharts.
-Runtime: Node 22, Fastify, `better-sqlite3`, plain `dgram` UDP listener,
-`undici` for UniFi API (self-signed cert tolerated).
+Runtime: Node 22, Fastify, `better-sqlite3`, native `dgram` for UDP,
+`undici` for the UniFi API (self-signed cert tolerated).
 
-## Quick start
+---
+
+## Install — Unraid (Community Apps)
+
+FireSight ships as a Community Apps template.
+
+1. In Unraid: **Apps** → search for **FireSight** → click **Install**.
+2. Confirm the default ports and `Appdata` path
+   (`/mnt/user/appdata/firesight`).
+3. Set **TZ** to your router's timezone (e.g. `Europe/Stockholm`). UniFi
+   syslog timestamps have no timezone field — if this is wrong, your logs
+   will appear 1–14 hours off. See [Timezone handling](#timezone-handling).
+4. Click **Apply**. The container will boot, bind UDP/514, and serve the UI
+   on `http://<unraid-ip>:8095`.
+
+> Network mode is **host** by default so the syslog source IP matches the
+> real UniFi device. If you need bridge mode, expose `8095/tcp` and
+> `514/udp` and accept that every message will look like it came from the
+> Docker gateway.
+
+If you maintain your own Unraid Community Apps repository fork, point it at
+[`unraid/ca_profile.xml`](unraid/ca_profile.xml) and
+[`unraid/templates/firesight.xml`](unraid/templates/firesight.xml).
+
+## Install — Docker / Docker Compose
+
+### Docker run
 
 ```bash
-git clone https://github.com/<you>/unifi-dashboard.git
-cd unifi-dashboard
-docker build -t unifi-dashboard .
-
-# create your env, then:
-docker run -d --name unifi-dashboard \
-  -p 3000:3000 -p 514:514/udp \
-  -v /mnt/user/appdata/unifi-dashboard:/data \
-  -e UNIFI_HOST=192.168.1.1 \
-  -e UNIFI_USER=readonly \
-  -e UNIFI_PASSWORD=... \
-  -e DASH_USER=admin \
-  -e DASH_PASSWORD=... \
-  -e SESSION_SECRET=$(openssl rand -hex 32) \
-  unifi-dashboard
+docker run -d --name firesight \
+  --network host \
+  -e TZ=Europe/Stockholm \
+  -v /mnt/user/appdata/firesight:/data \
+  --restart unless-stopped \
+  ghcr.io/tjindarr/unifi-insights-hub:latest
 ```
 
-Or use the included `docker-compose.example.yml`.
+Without host networking:
 
-Open <http://your-unraid-ip:3000>, sign in with `DASH_USER` / `DASH_PASSWORD`.
+```bash
+docker run -d --name firesight \
+  -p 8095:8095/tcp -p 514:514/udp \
+  -e TZ=Europe/Stockholm \
+  -v /mnt/user/appdata/firesight:/data \
+  --restart unless-stopped \
+  ghcr.io/tjindarr/unifi-insights-hub:latest
+```
 
-## Environment variables
+### docker-compose
 
-| Variable                  | Required | Default          | Description                                                  |
-|---------------------------|----------|------------------|--------------------------------------------------------------|
-| `UNIFI_HOST`              | no¹      | —                | Controller IP/hostname (e.g. `192.168.1.1`)                  |
-| `UNIFI_USER`              | yes¹     | —                | Read-only UniFi local user                                   |
-| `UNIFI_PASSWORD`          | yes¹     | —                | Password for that user                                       |
-| `UNIFI_SITE`              | no       | `default`        | UniFi site name                                              |
-| `SYSLOG_UDP_PORT`         | no       | `514`            | UDP port the syslog listener binds to                        |
-| `HTTP_PORT`               | no       | `3000`           | HTTP port for the dashboard                                  |
-| `DB_PATH`                 | no       | `/data/unifi.db` | SQLite file path                                             |
-| `RETENTION_DAYS`          | no       | `30`             | Drop syslog rows older than N days                           |
-| `RETENTION_FIREWALL_DAYS` | no       | `RETENTION_DAYS` | Drop firewall events older than N days                       |
-| `RETENTION_MAX_DB_MB`     | no       | `2048`           | Hard cap on DB size — oldest rows pruned to fit              |
-| `RETENTION_INTERVAL_MIN`  | no       | `60`             | How often the cleanup job runs                               |
-| `RETENTION_VACUUM_HOURS`  | no       | `24`             | How often to `VACUUM` to actually reclaim disk space         |
-| `DASH_USER`               | no       | `admin`          | Dashboard login username                                     |
-| `DASH_PASSWORD`           | no       | `admin`          | Dashboard login password (forced change on first login)      |
-| `SESSION_SECRET`          | yes      | —                | 32+ random chars, encrypts the session cookie                |
+See [`docker-compose.example.yml`](docker-compose.example.yml).
 
-¹ If `UNIFI_HOST` is unset, API polling is disabled — the syslog half still
-works. If you set `UNIFI_HOST` you must also set `UNIFI_USER` / `UNIFI_PASSWORD`.
+```bash
+docker compose -f docker-compose.example.yml up -d
+```
 
-Generate `SESSION_SECRET` with `openssl rand -hex 32`.
+### Build locally
+
+```bash
+git clone https://github.com/Tjindarr/unifi-insights-hub.git
+cd unifi-insights-hub
+docker build -t firesight:local .
+```
+
+---
+
+## Configure your UniFi router
+
+In the UniFi console:
+
+1. **Settings → System → Remote Logging / Remote Syslog**
+2. Enable forwarding to your Unraid IP, **UDP**, port **514**.
+3. Enable as many categories as you want (firewall is the most useful).
+
+Within ~10 seconds you'll see events in **Logs** and **Firewall**.
+
+### Read-only UniFi user (optional but recommended)
+
+For client-name resolution in firewall logs and wired/wireless counts on the
+Overview, create a UniFi **local** read-only admin:
+
+1. UniFi console → **Admins & Users → Admins → Add Admin**
+2. Choose **Restrict to local access only** and role **View Only**.
+3. In FireSight → **Settings → UniFi controller**, enter the host
+   (`192.168.1.1`), site (`default`), username, password.
+
+The API poller is disabled if you leave these blank. The syslog half works
+fine without it.
+
+## First login
+
+Default credentials are `admin` / `admin`. You'll be forced to set a new
+password on first login. The session cookie is signed with a per-instance
+secret stored in `/data/config.json`.
+
+## Timezone handling
+
+UniFi syslog uses RFC3164, which **has no timezone field**. The parser
+interprets timestamps in the container's local timezone — so you must set
+`TZ` to whatever your router is configured for.
+
+```bash
+docker run … -e TZ=Europe/Stockholm …
+```
+
+On Unraid, set the `TZ` variable on the template (default
+`Europe/Stockholm`). You can also nudge by minutes in
+**Settings → Time correction** without restarting the container.
+
+## UniFi API (optional, read-only)
+
+When configured, the API poller runs every 10 seconds and caches:
+
+- Clients (for MAC → hostname / alias resolution).
+- Device status (gateway / AP / switch).
+- WAN counters.
+
+All credentials live in `/data/config.json`, never in env vars after the
+first launch. Rotate by editing in the UI; restart not required.
+
+## Threat intelligence
+
+- **GeoIP** lookups via `ip-api.com` (free, batched, cached).
+- **AbuseIPDB** — paste an API key in **Settings → AbuseIPDB** to colour
+  rows by abuse confidence score.
+- **Offline feeds** — FireHOL Level 1 and Spamhaus DROP lists are pulled
+  hourly and matched against firewall events using CIDR ranges stored in
+  SQLite. No outbound calls per packet.
 
 ## Retention & cleanup
 
-Three layered policies keep the SQLite DB from growing unbounded on Unraid:
+Three layered policies (configurable from **Settings**):
 
-1. **Age — syslog** (`RETENTION_DAYS`): rows older than N days are deleted.
-2. **Age — firewall** (`RETENTION_FIREWALL_DAYS`): parsed firewall events are
-   pruned on their own schedule (useful if you want long firewall history but
-   short noisy syslog history).
-3. **Size cap** (`RETENTION_MAX_DB_MB`): a hard ceiling on on-disk DB size.
-   When exceeded, the oldest syslog rows are deleted in batches until the file
-   fits — protects you from a single noisy device filling the share.
+| Policy | Default | What it does |
+| --- | --- | --- |
+| `retentionDays` | 30 | Drops `syslog` rows older than N days. |
+| `retentionFirewallDays` | 30 | Drops parsed `firewall_events` separately. |
+| `maxDbMb` | 2048 | Hard ceiling on on-disk DB size. Oldest rows pruned to fit. |
 
-Cleanup runs every `RETENTION_INTERVAL_MIN` minutes (default hourly) and
-`VACUUM` runs every `RETENTION_VACUUM_HOURS` (default daily) to actually
-return freed pages to the filesystem. Stats and a "Run cleanup now" button
-are available under **Settings**, and the same data is exposed at
-`GET /api/retention` / `POST /api/retention/run`.
+Cleanup runs every `intervalMin` (default 60). `VACUUM` runs every
+`vacuumHours` (default 24) to actually return freed pages to the
+filesystem. A **Run cleanup now** button lives in Settings and at
+`POST /api/retention/run`.
 
-## Health checks
+## Environment variables
 
-The container ships with a built-in `HEALTHCHECK` that hits
-`GET /api/health` every 30s. The endpoint returns uptime, DB size, row
-counts, and the last retention run, so the same probe doubles as a sanity
-check from `docker ps` or the Unraid UI.
+Almost everything is configurable from the UI and persisted in
+`/data/config.json`. Env vars only **seed** the file on first launch.
 
-## UniFi setup
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TZ` | container default | Timezone used to interpret RFC3164 syslog timestamps |
+| `HTTP_PORT` | `8095` | HTTP port for the dashboard |
+| `SYSLOG_UDP_PORT` | `514` | UDP port the syslog listener binds to |
+| `DB_PATH` | `/data/unifi.db` | SQLite database path |
+| `CONFIG_PATH` | `/data/config.json` | Persistent settings file |
+| `DASH_USER` | `admin` | Seed username (first launch only) |
+| `DASH_PASSWORD` | `admin` | Seed password (forced change on first login) |
+| `RETENTION_DAYS` | `30` | Seed retention for syslog |
+| `RETENTION_FIREWALL_DAYS` | `RETENTION_DAYS` | Seed retention for firewall events |
+| `RETENTION_MAX_DB_MB` | `2048` | Seed hard cap on DB size |
+| `RETENTION_INTERVAL_MIN` | `60` | Seed cleanup interval |
+| `RETENTION_VACUUM_HOURS` | `24` | Seed VACUUM interval |
 
-1. **Create a read-only user.** In the UniFi console → Admins → invite a new
-   local user with the `View Only` role.
-2. **Point syslog at the container.** Settings → System → Remote Logging →
-   enable forwarding to your Unraid IP, UDP port 514, all levels you want.
-3. (Optional, recommended) Pin the container to your management network so
-   the syslog stream isn't traversing VLAN boundaries.
+## Updating
 
-## Unraid notes
+Unraid: **Apps → Installed Apps → Check for Updates → Update**.
 
-- Persist `/data` on a share (`/mnt/user/appdata/unifi-dashboard` is the
-  convention).
-- Port 514 must not already be in use by another container.
-- Easiest path is **host networking** — the syslog source IP then matches the
-  real UniFi device IP, which the parser stores in the `host` field. On
-  bridge mode, all messages appear to come from the Docker gateway.
-- The included `docker-compose.example.yml` covers all of the above and can
-  be dropped into Unraid's Compose Manager plugin verbatim.
+Docker:
+
+```bash
+docker pull ghcr.io/tjindarr/unifi-insights-hub:latest
+docker rm -f firesight
+# re-run your `docker run …` command
+```
+
+The SQLite schema is migrated automatically on boot.
 
 ## Development
 
-The React UI is the Lovable preview's responsibility — it iterates against
-mock data in `src/lib/mock-data.ts` so every screen is designable without a
-real UniFi controller.
-
-The `/server/` directory is the runtime that ships in the container. Lovable's
-preview does **not** run it (no UDP/514, no native modules). To work on the
-server locally:
-
 ```bash
+# frontend (Vite, mock-data only)
+bun install
+bun run dev          # http://localhost:8080
+
+# backend (real syslog + UniFi)
 cd server
 npm install
-DASH_USER=admin DASH_PASSWORD=admin SESSION_SECRET=$(openssl rand -hex 32) \
-  npm start
+DASH_USER=admin DASH_PASSWORD=admin npm start
 ```
 
-The frontend talks to `/api/*` in production. In the Lovable preview the same
-client code falls back to mock data so the UI is fully usable.
+The frontend proxies `/api` and `/ws` to `http://localhost:8095`. When
+backend endpoints are unreachable the UI falls back to anonymized mock data
+so every screen is designable without a real router.
 
 ## License
 
-MIT.
+MIT — see [LICENSE](LICENSE).

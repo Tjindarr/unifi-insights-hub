@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Unraid Community Apps — repository profile for the FireSight Docker template.
+  https://ca.unraid.net/submit/help/repository-info-xml
+-->
+<Repository>
+  <Profile>FireSight — self-hosted firewall log analyzer and syslog dashboard for UniFi routers. Single-container, no extra services, runs entirely on your Unraid box.</Profile>
+  <WebPage>https://github.com/Tjindarr/unifi-insights-hub</WebPage>
+  <Forum>https://github.com/Tjindarr/unifi-insights-hub/issues</Forum>
+  <Icon>https://raw.githubusercontent.com/Tjindarr/unifi-insights-hub/main/unraid/icon.png</Icon>
+</Repository>
