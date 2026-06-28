@@ -109,6 +109,34 @@ export function syslogCountSince(db: Database.Database, since: number): number {
   return row.n;
 }
 
+export type SyslogBucketRow = { t: number; info: number; warn: number; error: number };
+
+// Aggregate syslog entries into time buckets, classified by severity. Mirrors
+// firewallBuckets / internalEventBuckets so the Logs page's "messages per
+// minute" chart is driven only by the global time range, never by the table's
+// row limit or active filters.
+export function syslogBuckets(
+  db: Database.Database,
+  opts: { rangeMs: number; bucketMs: number },
+): SyslogBucketRow[] {
+  const now = Date.now();
+  const newest = (db.prepare("SELECT MAX(time) AS newest FROM syslog").get() as { newest: number | null }).newest;
+  if (newest == null) return [];
+  const end = Math.max(now, newest);
+  const since = Math.floor((end - opts.rangeMs) / opts.bucketMs) * opts.bucketMs;
+  return db.prepare(`
+    SELECT
+      (time / CAST(@bucket AS INTEGER)) * CAST(@bucket AS INTEGER) AS t,
+      SUM(CASE WHEN lower(coalesce(severity,'')) IN ('warn','warning','notice') THEN 1 ELSE 0 END) AS warn,
+      SUM(CASE WHEN lower(coalesce(severity,'')) IN ('err','error','crit','critical','alert','emerg','emergency') THEN 1 ELSE 0 END) AS error,
+      SUM(CASE WHEN lower(coalesce(severity,'')) NOT IN ('warn','warning','notice','err','error','crit','critical','alert','emerg','emergency') THEN 1 ELSE 0 END) AS info
+    FROM syslog
+    WHERE time >= @since
+    GROUP BY t
+    ORDER BY t ASC
+  `).all({ bucket: opts.bucketMs, since }) as SyslogBucketRow[];
+}
+
 export function vacuum(db: Database.Database) {
   // VACUUM cannot run inside a transaction.
   db.exec("VACUUM");

@@ -8,6 +8,7 @@ import {
   internalEventBuckets,
   recentFirewall,
   recentSyslog,
+  syslogBuckets,
   syslogCountSince,
 } from "../db/queries.ts";
 import { clientDetails } from "../syslog/enrichers.ts";
@@ -512,6 +513,16 @@ export async function registerApi(
     const rangeMs = req.query.rangeMs ? Number(req.query.rangeMs) : undefined;
     const bucketMs = req.query.bucketMs ? Number(req.query.bucketMs) : 60_000;
     return internalEventBuckets(db, { rangeMs, bucketMs });
+  });
+
+  // Aggregated severity buckets for the Logs "messages per minute" chart.
+  // Same pattern as the firewall/internal buckets: driven by global time range.
+  app.get<{
+    Querystring: { rangeMs?: string; bucketMs?: string };
+  }>("/api/syslog/buckets", async (req) => {
+    const rangeMs = req.query.rangeMs ? Number(req.query.rangeMs) : 60 * 60_000;
+    const bucketMs = req.query.bucketMs ? Number(req.query.bucketMs) : 60_000;
+    return syslogBuckets(db, { rangeMs, bucketMs });
   });
 
   // ---- IP enrichment (GeoIP via ip-api.com; threat via AbuseIPDB if key set) ----

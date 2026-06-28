@@ -8,6 +8,7 @@ import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
 import type { Severity, SyslogEntry } from "@/lib/mock-data";
 import { useSyslog, useSyslogByMinute } from "@/lib/live";
+import { useUI } from "@/lib/ui-store";
 import { formatDateTime, formatTime } from "@/lib/format";
 import { exportNdjson } from "@/lib/export";
 import { cn } from "@/lib/utils";
@@ -70,7 +71,8 @@ function LogsPage() {
   const rows = useMemo(() =>
     syslog.filter((s: SyslogEntry) => sev.has(s.severity) && (host === "all" || s.host === host) && matches(s, parsed))
   , [parsed, sev, host, syslog]);
-  const syslogByMinute = useSyslogByMinute(rows, isLive);
+  const { range } = useUI();
+  const { data: syslogByMinute, label: bucketLabel } = useSyslogByMinute(range);
 
 
 
@@ -112,7 +114,7 @@ function LogsPage() {
       <div className="px-6 pt-4">
         <div className="rounded-lg border border-border bg-card">
           <div className="px-4 pt-3 flex items-center justify-between">
-            <h2 className="text-xs uppercase tracking-wider text-muted-foreground">Messages / minute</h2>
+            <h2 className="text-xs uppercase tracking-wider text-muted-foreground">Messages {bucketLabel}</h2>
             <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-severity-info" />info</span>
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-severity-warn" />warn</span>
