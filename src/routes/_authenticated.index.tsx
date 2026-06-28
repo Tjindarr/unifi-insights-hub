@@ -365,15 +365,78 @@ function ChartCard({
   title: string; subtitle?: string; children: React.ReactNode; height?: string;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card flex flex-col">
+    <div className="rounded-lg border border-border bg-card">
       <div className="flex items-center justify-between px-4 pt-3">
         <h2 className="text-xs uppercase tracking-wider text-muted-foreground">{title}</h2>
         {subtitle && <span className="text-[10px] text-muted-foreground">{subtitle}</span>}
       </div>
-      <div className={cn("p-2 flex-1", height)}>{children}</div>
+      <div className={cn("p-2", height)}>{children}</div>
     </div>
   );
 }
+
+/** Fixed-height card for per-bucket bar charts — matches the firewall / internal pages. */
+function BucketCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-border bg-card">
+      <div className="px-4 pt-3 flex items-center justify-between">
+        <h2 className="text-xs uppercase tracking-wider text-muted-foreground">{title}</h2>
+        {subtitle && <span className="text-[10px] text-muted-foreground">{subtitle}</span>}
+      </div>
+      <div className="h-48 p-2">{children}</div>
+    </div>
+  );
+}
+
+/** Donut + side-aligned legend with counts. Avoids the Recharts horizontal legend overlapping the pie at narrow widths. */
+function DonutCard({
+  title, subtitle, data,
+}: {
+  title: string;
+  subtitle?: string;
+  data: { name: string; value: number; color: string }[];
+}) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  return (
+    <div className="rounded-lg border border-border bg-card">
+      <div className="px-4 pt-3 flex items-center justify-between">
+        <h2 className="text-xs uppercase tracking-wider text-muted-foreground">{title}</h2>
+        {subtitle && <span className="text-[10px] text-muted-foreground">{subtitle}</span>}
+      </div>
+      {total === 0 ? (
+        <div className="h-44"><Empty /></div>
+      ) : (
+        <div className="grid grid-cols-[140px_1fr] gap-2 p-3 items-center">
+          <div className="h-36">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={data} dataKey="value" nameKey="name" innerRadius={36} outerRadius={60} paddingAngle={2} stroke="none">
+                  {data.map((e, i) => <Cell key={i} fill={e.color} />)}
+                </Pie>
+                <Tooltip contentStyle={tooltipStyle} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <ul className="space-y-1 text-xs min-w-0">
+            {data.map((d) => {
+              const pct = total === 0 ? 0 : Math.round((d.value / total) * 100);
+              return (
+                <li key={d.name} className="flex items-center gap-2 min-w-0">
+                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: d.color }} />
+                  <span className="truncate capitalize">{d.name}</span>
+                  <span className="ml-auto tabular-nums text-muted-foreground">
+                    {d.value.toLocaleString()} <span className="opacity-60">· {pct}%</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function Empty() {
   return (
