@@ -166,7 +166,7 @@ function normFw(rows: FwRow[], macToName: Map<string, string>): FirewallEvent[] 
   return rows.map((r) => {
     let raw: Record<string, unknown> = {};
     try { raw = r.raw_json ? JSON.parse(r.raw_json) : {}; } catch { /* */ }
-    const severity: Severity = r.action === "failure" ? "warn" : r.action === "drop" || r.action === "deny" ? "error" : "info";
+    const severity: Severity = r.action === "failure" ? "warn" : ["drop", "deny", "block", "reject"].includes(r.action ?? "") ? "error" : "info";
     const macKey = r.client_mac?.toLowerCase();
     return {
       id: `fw${r.id}`,
