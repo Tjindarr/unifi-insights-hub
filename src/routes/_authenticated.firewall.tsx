@@ -474,7 +474,6 @@ function FirewallPage() {
               {rows.length === 0 && <li className="px-4 py-12 text-center text-sm text-muted-foreground">No events match the current filters.</li>}
             </ul>
           </div>
-        )}
       </div>
     </div>
   );
