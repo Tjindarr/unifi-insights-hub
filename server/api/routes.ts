@@ -255,8 +255,21 @@ export async function registerApi(
 
   const requireLive = () => unifi.getStatus().lastOk;
 
-  app.get("/api/overview", async (_req, reply) => {
-    if (!requireLive()) return reply.code(204).send();
+  app.get("/api/overview", async () => {
+    // Always return a real (possibly empty) object — the dashboard is
+    // syslog-driven and must never fall back to mock client data just because
+    // the UniFi controller poll is momentarily offline.
+    if (!requireLive()) {
+      return {
+        totalClients: 0,
+        wired: 0,
+        wireless: 0,
+        avgSatisfaction: 0,
+        currentRx: 0,
+        currentTx: 0,
+        topTalkers: [],
+      };
+    }
     const clients = snap<unknown[]>("unifi_clients_snapshot") ?? [];
     const devices = snap<unknown[]>("unifi_devices_snapshot") ?? [];
     const health = snap<unknown[]>("unifi_health_snapshot") ?? [];
