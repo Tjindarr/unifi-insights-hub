@@ -11,6 +11,7 @@ import { useUI } from "@/lib/ui-store";
 import { deauthReasonMap, geoLookup } from "@/lib/mock-extra";
 import {
   describeFirewallEvent,
+  isBlockedAction,
   isFirewallRuleEvent,
   shortEventLabel,
 } from "@/lib/firewall-format";
