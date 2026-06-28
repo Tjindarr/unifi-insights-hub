@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChevronRight, Pause, Play, Search, ShieldAlert } from "lucide-react";
 
@@ -7,7 +7,7 @@ import { PageHeader, SeverityDot } from "@/components/app-shell";
 import { DemoBadge } from "@/components/demo-badge";
 import { Input } from "@/components/ui/input";
 import { useFirewall, useFirewallByMinute } from "@/lib/live";
-import { useUI } from "@/lib/ui-store";
+import { TIME_RANGES, useUI, type TimeRangeKey } from "@/lib/ui-store";
 import { deauthReasonMap, geoLookup } from "@/lib/mock-extra";
 import {
   describeFirewallEvent,
@@ -19,6 +19,7 @@ import { ccToFlag, externalIp, threatTier, useIpInfo, type IpInfo } from "@/lib/
 import { formatTime, relativeTime } from "@/lib/format";
 import { exportNdjson } from "@/lib/export";
 import { cn } from "@/lib/utils";
+
 
 
 export const Route = createFileRoute("/_authenticated/firewall")({
