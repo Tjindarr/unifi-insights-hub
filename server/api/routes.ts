@@ -38,6 +38,35 @@ type Deps = {
   threatFeeds: ThreatFeedManager;
 };
 
+// ---- AbuseIPDB quota tracking --------------------------------------------
+// When the daily 1000-request quota is exhausted (HTTP 429), back off all
+// /check calls for 30 minutes before retrying. The state is exposed through
+// /api/collector so the top status bar can surface it to the user.
+const ABUSE_BACKOFF_MS = 30 * 60_000;
+const abuseQuota: {
+  exhaustedAt: number | null;
+  retryAt: number | null;
+  lastError: string | null;
+} = { exhaustedAt: null, retryAt: null, lastError: null };
+
+function abuseQuotaExhausted(): boolean {
+  if (!abuseQuota.retryAt) return false;
+  if (Date.now() >= abuseQuota.retryAt) {
+    abuseQuota.exhaustedAt = null;
+    abuseQuota.retryAt = null;
+    abuseQuota.lastError = null;
+    return false;
+  }
+  return true;
+}
+
+function markAbuseExhausted(reason: string) {
+  const now = Date.now();
+  abuseQuota.exhaustedAt = now;
+  abuseQuota.retryAt = now + ABUSE_BACKOFF_MS;
+  abuseQuota.lastError = reason;
+}
+
 export async function registerApi(
   app: FastifyInstance,
   { db, auth, config, unifi, retention, threatFeeds }: Deps,
@@ -455,6 +484,9 @@ export async function registerApi(
       retentionDays: config.get().retention.retentionDays,
       oldestEntryDays: stats.oldestTime ? Math.round((Date.now() - stats.oldestTime) / 86400_000) : 0,
       fts5Indexed: stats.syslogCount,
+      abuseQuotaExhausted: abuseQuotaExhausted(),
+      abuseQuotaRetryAt: abuseQuota.retryAt,
+      abuseQuotaError: abuseQuota.lastError,
     };
   });
 
@@ -656,20 +688,40 @@ export async function registerApi(
       process.env.ABUSEIPDB_API_KEY;
 
     // Only spend /check quota when explicitly enabled AND a key is configured.
-    const needAbuse = ti.checkOnMiss !== false ? needAbuseCandidates : [];
+    const quotaBlocked = abuseQuotaExhausted();
+    const needAbuse = ti.checkOnMiss !== false && !quotaBlocked ? needAbuseCandidates : [];
+    let abuseFetched = 0;
     if (abuseKey && needAbuse.length) {
       // Hard cap per request to protect the free-tier 1000/day quota.
-      await Promise.all(needAbuse.slice(0, 25).map(async (ip) => {
+      const batch = needAbuse.slice(0, 25);
+      await Promise.all(batch.map(async (ip) => {
+        if (abuseQuotaExhausted()) return;
         try {
           const r = await fetch(
             `https://api.abuseipdb.com/api/v2/check?ipAddress=${encodeURIComponent(ip)}&maxAgeInDays=90`,
             { headers: { Key: abuseKey, Accept: "application/json" } },
           );
-          if (!r.ok) return;
-          const j = (await r.json()) as { data?: { abuseConfidenceScore?: number; totalReports?: number } };
+          if (r.status === 429) {
+            markAbuseExhausted("AbuseIPDB daily quota exhausted (HTTP 429)");
+            return;
+          }
+          if (!r.ok) {
+            // Some plans return 403 when the quota is exceeded — treat as exhaustion too.
+            if (r.status === 403) {
+              markAbuseExhausted(`AbuseIPDB request blocked (HTTP ${r.status})`);
+            }
+            return;
+          }
+          const j = (await r.json()) as { data?: { abuseConfidenceScore?: number; totalReports?: number }; errors?: Array<{ detail?: string; status?: number }> };
+          if (j.errors && j.errors.length) {
+            const detail = j.errors[0]?.detail ?? "AbuseIPDB error";
+            if (/quota|limit|exceed/i.test(detail)) markAbuseExhausted(detail);
+            return;
+          }
           const score = j.data?.abuseConfidenceScore ?? null;
           const reports = j.data?.totalReports ?? null;
           upsertAbuse.run({ ip, score, reports, at: now });
+          abuseFetched += 1;
           out[ip] = {
             ...out[ip],
             abuseScore: score ?? undefined,
@@ -688,7 +740,9 @@ export async function registerApi(
       checkOnMiss: ti.checkOnMiss !== false,
       cached: ips.length - needGeo.length,
       geoFetched: needGeo.length,
-      abuseFetched: abuseKey ? Math.min(needAbuse.length, 25) : 0,
+      abuseFetched,
+      abuseQuotaExhausted: abuseQuotaExhausted(),
+      abuseQuotaRetryAt: abuseQuota.retryAt,
     };
   });
 

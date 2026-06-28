@@ -1,8 +1,16 @@
-import { Activity, AlertTriangle, Database, Radio, Timer } from "lucide-react";
+import { Activity, AlertTriangle, Database, Radio, ShieldAlert, Timer } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { useCollector } from "@/lib/live";
 import { formatBytes } from "@/lib/format";
+
+function formatRetryIn(retryAt?: number | null) {
+  if (!retryAt) return "";
+  const ms = retryAt - Date.now();
+  if (ms <= 0) return "retrying";
+  const min = Math.ceil(ms / 60_000);
+  return `retry in ${min}m`;
+}
 
 export function HealthBanner() {
   const { data: c, isLive } = useCollector();
@@ -24,6 +32,18 @@ export function HealthBanner() {
       />
       <Pill icon={<Database className="h-3 w-3" />} label="db" value={`${formatBytes(c.dbSizeBytes)} · ${c.fts5Indexed.toLocaleString()} idx`} ok />
       <Pill icon={<Activity className="h-3 w-3" />} label="retention" value={`${c.oldestEntryDays}d / ${c.retentionDays}d`} ok={c.oldestEntryDays < c.retentionDays} />
+      {c.abuseQuotaExhausted && (
+        <Link
+          to="/settings"
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-severity-error/40 bg-severity-error/10 text-severity-error hover:bg-severity-error/20"
+          title={c.abuseQuotaError ?? "AbuseIPDB daily quota exhausted"}
+        >
+          <ShieldAlert className="h-3 w-3" />
+          <span className="uppercase tracking-wider text-[10px]">
+            AbuseIPDB quota exhausted{c.abuseQuotaRetryAt ? ` · ${formatRetryIn(c.abuseQuotaRetryAt)}` : ""}
+          </span>
+        </Link>
+      )}
       {!isLive && (
         <Link
           to="/settings"
