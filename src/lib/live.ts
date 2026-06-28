@@ -400,17 +400,21 @@ function normSyslog(rows: SysRow[]): SyslogEntry[] {
   }));
 }
 
-export function useSyslog(params: { q?: string; host?: string; severity?: string } = {}): Live<SyslogEntry[]> {
+export function useSyslog(
+  params: { q?: string; host?: string; severity?: string; since?: number; limit?: number; paused?: boolean } = {},
+): Live<SyslogEntry[]> {
   const qs = new URLSearchParams();
   if (params.q) qs.set("q", params.q);
   if (params.host) qs.set("host", params.host);
   if (params.severity) qs.set("severity", params.severity);
-  qs.set("limit", "1000");
+  if (params.since != null) qs.set("since", String(params.since));
+  qs.set("limit", String(params.limit ?? 500));
   const key = `syslog?${qs.toString()}`;
   const { data, isLive, loading } = useLive<SysRow[] | SyslogEntry[]>(
     key,
     () => getJson<SysRow[]>(`/api/logs?${qs.toString()}`),
     mockSyslog as unknown as SysRow[],
+    params.paused ? false : 10_000,
   );
   const normalized = isLive ? normSyslog(data as SysRow[]) : (data as SyslogEntry[]);
   return { data: normalized, isLive, loading };
