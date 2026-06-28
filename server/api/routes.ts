@@ -8,6 +8,7 @@ import {
   internalEventBuckets,
   recentFirewall,
   recentSyslog,
+  syslogCountSince,
 } from "../db/queries.ts";
 import { clientDetails } from "../syslog/enrichers.ts";
 import type { makeAuth } from "../auth.ts";
@@ -440,8 +441,10 @@ export async function registerApi(
   app.get("/api/collector", async () => {
     const stats = dbStats(db);
     const u = unifi.getStatus();
+    const msgWindowMs = 60_000;
+    const msgCount = syslogCountSince(db, Date.now() - msgWindowMs);
     return {
-      msgsPerSec: 0, // collector throughput meter could be added later
+      msgsPerSec: Math.round((msgCount / (msgWindowMs / 1000)) * 10) / 10,
       syslogQueueDepth: 0,
       unifiPollMs: 0,
       unifiPollAgeSec: u.lastPollAt ? Math.round((Date.now() - u.lastPollAt) / 1000) : 9999,

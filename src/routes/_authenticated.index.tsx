@@ -355,8 +355,14 @@ function OverviewPage() {
 const tooltipStyle = {
   background: "var(--color-popover)",
   border: "1px solid var(--color-border)",
+  color: "var(--color-popover-foreground)",
   borderRadius: 6,
   fontSize: 11,
+} as const;
+
+const donutTooltipStyle = {
+  ...tooltipStyle,
+  color: "var(--color-foreground)",
 } as const;
 
 function ChartCard({
@@ -413,7 +419,7 @@ function DonutCard({
                 <Pie data={data} dataKey="value" nameKey="name" innerRadius={36} outerRadius={60} paddingAngle={2} stroke="none">
                   {data.map((e, i) => <Cell key={i} fill={e.color} />)}
                 </Pie>
-                <Tooltip contentStyle={tooltipStyle} />
+                <Tooltip contentStyle={donutTooltipStyle} itemStyle={{ color: "var(--color-foreground)" }} labelStyle={{ color: "var(--color-foreground)" }} />
               </PieChart>
             </ResponsiveContainer>
           </div>

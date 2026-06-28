@@ -104,6 +104,11 @@ export function dbStats(db: Database.Database) {
   };
 }
 
+export function syslogCountSince(db: Database.Database, since: number): number {
+  const row = db.prepare("SELECT COUNT(*) AS n FROM syslog WHERE time >= ?").get(since) as { n: number };
+  return row.n;
+}
+
 export function vacuum(db: Database.Database) {
   // VACUUM cannot run inside a transaction.
   db.exec("VACUUM");
