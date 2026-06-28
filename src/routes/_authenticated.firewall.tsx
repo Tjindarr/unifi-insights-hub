@@ -428,7 +428,7 @@ function FirewallPage() {
 
 
         <div className="rounded-lg border border-border bg-card overflow-hidden">
-            <ul className="divide-y divide-border">
+          <ul className="divide-y divide-border">
               {rows.map((e) => {
                 const open = expanded === e.id;
                 const summary = describeFirewallEvent(e);
