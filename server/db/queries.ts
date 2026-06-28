@@ -198,6 +198,7 @@ export function recentSyslog(
     firewallOnly?: boolean;
     limit?: number;
     since?: number;
+    until?: number;
   },
 ) {
   const limit = Math.min(opts.limit ?? 500, 20000);
