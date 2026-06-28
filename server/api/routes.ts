@@ -484,6 +484,9 @@ export async function registerApi(
       retentionDays: config.get().retention.retentionDays,
       oldestEntryDays: stats.oldestTime ? Math.round((Date.now() - stats.oldestTime) / 86400_000) : 0,
       fts5Indexed: stats.syslogCount,
+      abuseQuotaExhausted: abuseQuotaExhausted(),
+      abuseQuotaRetryAt: abuseQuota.retryAt,
+      abuseQuotaError: abuseQuota.lastError,
     };
   });
 
