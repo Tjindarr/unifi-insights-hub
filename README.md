@@ -188,6 +188,7 @@ clients make to the internet and every inbound probe blocked by the router.
 ### Read-only UniFi user (optional but recommended)
 
 
+
 For client-name resolution in firewall logs and wired/wireless counts on the
 Overview, create a UniFi **local** read-only admin:
 
