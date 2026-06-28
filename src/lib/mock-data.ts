@@ -199,92 +199,182 @@ export const wanThroughput: ThroughputPoint[] = Array.from({ length: 60 }, (_, i
 });
 
 // ----------------------------------------------------------------------------
-// Syslog + firewall events
+// Syslog + firewall events — anonymized samples modeled on real UDR7 output:
+//   <13> ... [LAN_WAN-A-2147483647] DESCR="[LAN_WAN]Allow All Traffic" IN=br0
+//        OUT=eth3 MAC=... SRC=172.16.10.X DST=<public> PROTO=TCP/UDP SPT=... DPT=...
+//   <13> ... [WAN_LOCAL-D-2147483647] DESCR="[WAN_LOCAL]Block All Traffic" ...
+//   <14> ... stahtd[NNN]: [STA-TRACKER].stahtd_dump_event(): {...}
 // ----------------------------------------------------------------------------
 
-const SEVS: Severity[] = ["info", "info", "info", "notice", "notice", "warn", "warn", "error", "critical"];
-
-const sampleMessages = [
-  "DHCPACK on 192.168.10.45 to 9c:8e:cd:11:22:33 via br10",
-  "hostapd: wifi0ap8: STA 54:32:04:52:12:a4 IEEE 802.11: associated",
-  "kernel: [UFW BLOCK] IN=eth4 OUT= MAC=... SRC=185.220.101.45 DST=192.168.1.1 LEN=60 PROTO=TCP SPT=44231 DPT=22",
-  "dpinger: WAN 1.1.1.1: Alarm latency 24ms loss 0%",
-  "stahtd: client roamed from U7-Pro-XG-Loft to U7-Pro-XG-Living",
-  "miniupnpd: redirect port 49152 protocol UDP to 192.168.10.45:49152",
-  "wpa_supplicant: CTRL-EVENT-DISCONNECTED bssid=9c:05:d6:11:22:33 reason=4",
+// Anonymized public destinations (a mix of well-known clean ASNs).
+const PUB_DESTS = [
+  "162.159.140.164", "172.64.151.205", "1.1.1.1",
+  "8.8.8.8", "8.8.4.4", "142.251.142.225", "172.217.20.161",
+  "17.253.39.134", "17.248.214.70", "23.215.2.148",
+  "151.101.131.6", "104.18.32.47",
+  "20.190.177.83", "52.123.128.14", "40.126.53.18",
+  "31.13.72.8", "157.240.20.35",
+  "52.51.22.235", "34.111.220.252", "3.5.78.20",
 ];
+// "Scanner" sources hitting WAN_LOCAL — anonymized DE/RU/NL/BG ranges.
+const SCAN_SRCS = [
+  "79.124.56.210", "79.124.49.114", "45.143.200.14",
+  "194.165.16.78", "185.220.101.45", "212.83.42.117",
+  "104.244.74.211", "23.92.16.5", "92.118.39.6",
+];
+const RULES_ALLOW = ["LAN_WAN-A-2147483647", "LAN_LOCAL-A-2147483647", "LANv6_WAN-A-2147483647"];
+const RULES_BLOCK = ["WAN_LOCAL-D-2147483647", "LAN_WAN-D-2000000000", "WAN_IN-D-2147483647"];
 
-function makeFirewallRaw(mac: string, evType: "failure" | "success"): Record<string, unknown> {
+const NOW = Date.now();
+const WINDOW_MS = 60 * 60_000;
+
+function randPort(seed: number): number {
+  const r = mulberry32(seed);
+  return 1024 + Math.floor(r() * 60000);
+}
+
+type RuleSample = {
+  event: FirewallEvent;
+  host: string;
+  rawLine: string;
+};
+
+function makeRuleSample(i: number): RuleSample {
+  const t = NOW - Math.floor(rand() * WINDOW_MS);
+  const blocked = rand() < 0.3;
+  const client = clients[i % clients.length];
+  const proto = rand() < 0.7 ? "TCP" : "UDP";
+  const dpt = proto === "UDP" && rand() < 0.4 ? 53 : (rand() < 0.85 ? 443 : pick([80, 853, 5228, 3478, 51820]));
+  const spt = randPort(i * 7 + 3);
+  const rule = blocked ? pick(RULES_BLOCK) : pick(RULES_ALLOW);
+  const action: FirewallEvent["action"] = blocked ? "drop" : "allow";
+  const src = blocked ? pick(SCAN_SRCS) : client.ip;
+  const dst = blocked ? "83.253.187.68" : pick(PUB_DESTS);
+  const sev: Severity = blocked ? "warn" : "notice";
+  const descr = blocked ? "[WAN_LOCAL]Block All Traffic" : "[LAN_WAN]Allow All Traffic";
+  const inIf = blocked ? "eth3" : "br0";
+  const outIf = blocked ? "" : "eth3";
+  const ts = new Date(t).toISOString();
+  const host = "Berget-UDR7";
+  const rawLine =
+    `<13>${new Date(t).toUTCString().replace("GMT", "")} ${host} ${host} ` +
+    `[${rule}] DESCR="${descr}" IN=${inIf} OUT=${outIf} MAC=${client.mac} ` +
+    `SRC=${src} DST=${dst} LEN=60 TOS=00 PREC=0x00 TTL=63 PROTO=${proto} SPT=${spt} DPT=${dpt}`;
   return {
-    op: "event",
-    message_type: "STA_ASSOC_TRACKER",
-    event_type: evType,
-    mac,
-    vap: pick(["wifi0ap8", "wifi1ap3", "wifi2ap0"]),
-    assoc_status: evType === "failure" ? "0" : "16",
-    wpa_auth_failures: evType === "failure" ? "1" : "0",
-    deauth_reason: pick(["15", "4", "8", "23"]),
-    auth_rssi: String(-(35 + Math.floor(rand() * 45))),
-    auth_algo: "open",
+    host,
+    rawLine,
+    event: {
+      id: `fw${i}`,
+      time: ts,
+      rule,
+      action,
+      eventType: blocked ? "block" : "allow",
+      messageType: "FIREWALL",
+      clientMac: blocked ? undefined : client.mac,
+      clientName: blocked ? undefined : client.hostname,
+      srcIp: src, srcPort: spt,
+      dstIp: dst, dstPort: dpt,
+      proto,
+      severity: sev,
+      raw: { rule, descr, in: inIf, out: outIf, src, dst, proto, spt, dpt },
+    },
   };
 }
 
-export const syslog: SyslogEntry[] = Array.from({ length: 220 }, (_, i) => {
-  const t = new Date(Date.now() - i * (4_000 + Math.floor(rand() * 30_000))).toISOString();
-  const isFw = rand() < 0.35;
-  const sev: Severity = isFw ? pick(["notice", "warn", "warn", "error"]) : pick(SEVS);
-  const host = pick(["U7ProXG-Loft", "U7ProXG-Living", "UDR7", "sw-rack", "U6-Mesh-Garage"]);
-  const appname = isFw
-    ? `${randMac(i).replace(/:/g, "")},U7-Pro-XG-8.6.11+18870`
-    : pick(["dnsmasq", "kernel", "dpinger", "hostapd", "miniupnpd", "stahtd"]);
-  const mac = clients[i % clients.length].mac;
-  const message = isFw
-    ? `stahtd[6631]: [STA-TRACKER].stahtd_dump_event(): ${JSON.stringify(makeFirewallRaw(mac, rand() < 0.7 ? "failure" : "success"))}`
-    : pick(sampleMessages);
-  return {
-    id: `s${i}`,
-    time: t,
-    host,
-    appname,
-    facility: isFw ? "user" : pick(["user", "daemon", "kern", "auth"]),
-    severity: sev,
-    message,
-    raw: `<14>${new Date(t).toUTCString()} ${host} ${appname}: ${message}`,
-    isFirewall: isFw,
+function makeStaSample(i: number): RuleSample {
+  const t = NOW - Math.floor(rand() * WINDOW_MS);
+  const client = clients[i % clients.length];
+  const evType = pick(["association", "sta_roam", "soft failure", "failure", "sta_leave", "success"]);
+  const action: FirewallEvent["action"] = evType === "failure" ? "failure" : "success";
+  const vap = pick(["wifi0ap0", "wifi1ap2", "wifi2ap0"]);
+  const rssi = -(35 + Math.floor(rand() * 50));
+  const deauth = pick(["3", "4", "8", "15", "23"]);
+  const reasonMap: Record<string, string> = {
+    "3": "Station is leaving",
+    "4": "Disassociated due to inactivity",
+    "8": "Station leaving",
+    "15": "4-way handshake timeout",
+    "23": "802.1X auth failed",
   };
-});
-
-export const firewallEvents: FirewallEvent[] = syslog
-  .filter((s) => s.isFirewall)
-  .map((s, i) => {
-    const jsonStart = s.message.indexOf("{");
-    const raw = jsonStart >= 0 ? (JSON.parse(s.message.slice(jsonStart)) as Record<string, unknown>) : {};
-    const mac = (raw.mac as string) || "";
-    const client = clients.find((c) => c.mac === mac);
-    const evType = (raw.event_type as string) || "info";
-    const sev: Severity = evType === "failure" ? "warn" : "info";
-    const reasonMap: Record<string, string> = {
-      "15": "4-way handshake timeout",
-      "4": "Disassociated due to inactivity",
-      "8": "Station leaving",
-      "23": "802.1X auth failed",
-    };
-    return {
-      id: `fw${i}`,
-      time: s.time,
+  const raw: Record<string, unknown> = {
+    op: "event",
+    message_type: "STA_ASSOC_TRACKER",
+    event_type: evType,
+    mac: client.mac,
+    vap,
+    auth_rssi: String(rssi),
+    auth_algo: pick(["sae", "open", "ft-sae"]),
+    deauth_reason: deauth,
+    auth_failures: action === "failure" ? "1" : "0",
+  };
+  const ts = new Date(t).toISOString();
+  const host = pick(["U7ProXG", "U7-Pro-XG-Living", "U6-Mesh-Garage"]);
+  const rawLine = `<14>${new Date(t).toUTCString().replace("GMT", "")} ${host} stahtd[6630]: [STA-TRACKER].stahtd_dump_event(): ${JSON.stringify(raw)}`;
+  return {
+    host,
+    rawLine,
+    event: {
+      id: `fw_sta${i}`,
+      time: ts,
       rule: "STA-TRACKER",
-      action: evType === "failure" ? "failure" : "success",
+      action,
       eventType: evType,
-      messageType: (raw.message_type as string) || "STA_ASSOC_TRACKER",
-      clientMac: mac,
-      clientName: client?.hostname,
-      vap: raw.vap as string,
-      rssi: raw.auth_rssi ? Number(raw.auth_rssi) : undefined,
-      reason: reasonMap[raw.deauth_reason as string] ?? (raw.deauth_reason as string),
-      severity: sev,
+      messageType: "STA_ASSOC_TRACKER",
+      clientMac: client.mac,
+      clientName: client.hostname,
+      vap,
+      rssi,
+      reason: reasonMap[deauth],
+      severity: action === "failure" ? "warn" : "info",
       raw,
+    },
+  };
+}
+
+const _samples: RuleSample[] = [
+  ...Array.from({ length: 600 }, (_, i) => makeRuleSample(i)),
+  ...Array.from({ length: 160 }, (_, i) => makeStaSample(i)),
+].sort((a, b) => b.event.time.localeCompare(a.event.time));
+
+export const firewallEvents: FirewallEvent[] = _samples.map((s) => s.event);
+
+// Syslog view — show ~260 recent lines: most firewall-derived, plus system noise.
+const _systemLines = [
+  { app: "systemd",  msg: "Finished Check and correct WiFi IRQ affinity." },
+  { app: "systemd",  msg: "smp-affinity-monitor.service: Succeeded." },
+  { app: "dnsmasq",  msg: "DHCPACK(br10) 172.16.10.45 b8:01:1f:5e:36:45 ipad-living" },
+  { app: "kernel",   msg: "wlan: peer 22:c0:6c:f3:01:b0 roamed wifi0ap0 -> wifi1ap2" },
+  { app: "dpinger",  msg: "WAN 1.1.1.1: latency 11ms loss 0%" },
+];
+
+export const syslog: SyslogEntry[] = [
+  ..._samples.slice(0, 220).map((s) => ({
+    id: `s_${s.event.id}`,
+    time: s.event.time,
+    host: s.host,
+    appname: s.event.rule === "STA-TRACKER" ? "stahtd" : "",
+    facility: "user",
+    severity: s.event.severity,
+    message: s.rawLine.slice(s.rawLine.indexOf("[")),
+    raw: s.rawLine,
+    isFirewall: true,
+  })),
+  ...Array.from({ length: 40 }, (_, i) => {
+    const tpl = _systemLines[i % _systemLines.length];
+    const t = new Date(NOW - Math.floor(rand() * WINDOW_MS)).toISOString();
+    return {
+      id: `ssys${i}`,
+      time: t,
+      host: "Berget-UDR7",
+      appname: tpl.app,
+      facility: "daemon",
+      severity: "info" as Severity,
+      message: `${tpl.app}[1]: ${tpl.msg}`,
+      raw: `<30>${new Date(t).toUTCString().replace("GMT", "")} Berget-UDR7 ${tpl.app}[1]: ${tpl.msg}`,
+      isFirewall: false,
     };
-  });
+  }),
+].sort((a, b) => b.time.localeCompare(a.time));
 
 // ----------------------------------------------------------------------------
 // Access points + site health
