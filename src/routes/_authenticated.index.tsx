@@ -115,7 +115,7 @@ function OverviewPage() {
       const k = e.rule || "—";
       const row = m.get(k) ?? { name: k, count: 0, blocked: 0 };
       row.count++;
-      if (["block", "drop", "deny", "failure"].includes(e.action)) row.blocked++;
+      if (["block", "drop", "deny", "failure", "reject"].includes((e.action || "").toLowerCase())) row.blocked++;
       m.set(k, row);
     }
     return [...m.values()].sort((a, b) => b.count - a.count).slice(0, 8);
