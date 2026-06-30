@@ -224,6 +224,25 @@ CREATE TABLE IF NOT EXISTS threat_feed_meta (
   cidr_count       INTEGER DEFAULT 0
 );
 
+-- ---- Persistent MAC → name cache ----------------------------------------
+-- Once a device is named (by the UniFi controller's alias/name/hostname, or
+-- by a DHCP lease hostname), the name sticks here so historical firewall and
+-- internal log rows can resolve the MAC even after the device goes offline
+-- or disappears from the UniFi live client list.
+--   priority: 4=unifi alias, 3=unifi name, 2=unifi hostname, 1=dhcp hostname
+-- Only higher-or-equal priority sources overwrite an existing entry.
+CREATE TABLE IF NOT EXISTS client_name_cache (
+  mac           TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,
+  source        TEXT NOT NULL,
+  priority      INTEGER NOT NULL DEFAULT 1,
+  first_seen_at INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL,
+  last_seen_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cnc_updated ON client_name_cache(updated_at DESC);
+
+
 
 
 

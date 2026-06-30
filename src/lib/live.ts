@@ -153,6 +153,19 @@ export function useClients(opts: { paused?: boolean } = {}): Live<Client[]> {
   return useLive("clients", () => getJson<Client[]>("/api/clients"), mockClients, opts.paused ? false : 10_000);
 }
 
+// Persistent MAC → name cache that survives device offline / UniFi outages.
+// Populated server-side from UniFi polls and DHCP syslog enrichment.
+export type ClientNamesResponse = { count: number; names: Record<string, { name: string; source: string }> };
+const EMPTY_CLIENT_NAMES: ClientNamesResponse = { count: 0, names: {} };
+export function useClientNames(opts: { paused?: boolean } = {}): Live<ClientNamesResponse> {
+  return useLive(
+    "client-names",
+    () => getJson<ClientNamesResponse>("/api/client-names"),
+    EMPTY_CLIENT_NAMES,
+    opts.paused ? false : 30_000,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Firewall (server returns SQL rows — normalize to FirewallEvent shape)
 // ---------------------------------------------------------------------------
@@ -195,7 +208,8 @@ function normFw(rows: FwRow[], macToName: Map<string, string>): FirewallEvent[] 
 }
 
 export function useFirewall(opts: { kind?: "internal" | "firewall"; limit?: number; since?: number; until?: number; paused?: boolean } = {}): Live<FirewallEvent[]> {
-  const { data: clients } = useClients();
+  const { data: clients } = useClients({ paused: opts.paused });
+  const { data: cachedNames } = useClientNames({ paused: opts.paused });
   const limit = opts.limit ?? 500;
   const qs = new URLSearchParams();
   qs.set("limit", String(limit));
@@ -212,6 +226,12 @@ export function useFirewall(opts: { kind?: "internal" | "firewall"; limit?: numb
 
   const macToName = useMemo(() => {
     const m = new Map<string, string>();
+    // Seed with persistent cache first — these are the names that survive
+    // devices going offline or disappearing from the live client list.
+    for (const [mac, info] of Object.entries(cachedNames.names)) {
+      if (mac && info?.name) m.set(mac.toLowerCase(), info.name);
+    }
+    // Live UniFi client list overrides with the freshest names.
     for (const c of clients) {
       if (!c.mac) continue;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -228,7 +248,7 @@ export function useFirewall(opts: { kind?: "internal" | "firewall"; limit?: numb
       if (name) m.set(String(c.mac).toLowerCase(), String(name));
     }
     return m;
-  }, [clients]);
+  }, [clients, cachedNames]);
   const normalized = isLive ? normFw(data as FwRow[], macToName) : (data as FirewallEvent[]);
   return { data: normalized, isLive, loading };
 }

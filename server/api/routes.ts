@@ -4,6 +4,7 @@ import type { FastifyInstance } from "fastify";
 import {
   dbStats,
   firewallBuckets,
+  getAllClientNames,
   getSnapshot,
   internalEventBuckets,
   recentFirewall,
@@ -319,6 +320,17 @@ export async function registerApi(
   app.get<{ Params: { mac: string } }>("/api/clients/:mac/details", async (req) => {
     return clientDetails(db, req.params.mac);
   });
+
+  // Persistent MAC → name cache. Always available (no UniFi connection
+  // required) so historical firewall / internal logs can resolve devices
+  // that are currently offline or no longer in the live client list.
+  app.get("/api/client-names", async () => {
+    const rows = getAllClientNames(db);
+    const map: Record<string, { name: string; source: string }> = {};
+    for (const r of rows) map[r.mac] = { name: r.name, source: r.source };
+    return { count: rows.length, names: map };
+  });
+
 
   app.get("/api/devices", async (_req, reply) => {
     if (!requireLive()) return reply.code(204).send();

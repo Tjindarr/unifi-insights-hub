@@ -4,7 +4,7 @@
 import type Database from "better-sqlite3";
 
 import { UnifiClient, type UnifiConfig } from "./client.ts";
-import { setSnapshot } from "../db/queries.ts";
+import { setSnapshot, upsertClientName } from "../db/queries.ts";
 
 type Status = {
   enabled: boolean;
@@ -96,9 +96,36 @@ export class UnifiManager {
         this.client.devices(),
         this.client.health(),
       ]);
-      setSnapshot(this.db, "unifi_clients_snapshot", unwrap(clients));
+      const clientsData = unwrap(clients);
+      setSnapshot(this.db, "unifi_clients_snapshot", clientsData);
       setSnapshot(this.db, "unifi_devices_snapshot", unwrap(devices));
       setSnapshot(this.db, "unifi_health_snapshot", unwrap(health));
+
+      // Persist MAC → name into the durable cache so historical log rows can
+      // still resolve the device even after it disappears from the live list.
+      try {
+        const list = Array.isArray(clientsData) ? clientsData : [];
+        const now = Date.now();
+        const tx = this.db.transaction((rows: unknown[]) => {
+          for (const raw of rows) {
+            const c = raw as Record<string, unknown>;
+            const mac = typeof c.mac === "string" ? c.mac : null;
+            if (!mac) continue;
+            const alias = typeof c.name === "string" && c.name ? c.name : null; // UniFi "alias" lands in `name` from controller
+            const note = typeof c.note === "string" && c.note ? c.note : null;
+            const hostname = typeof c.hostname === "string" && c.hostname ? c.hostname : null;
+            const dhcpHostname = typeof c.dhcp_hostname === "string" && c.dhcp_hostname ? c.dhcp_hostname : null;
+            // UniFi REST returns alias via `name`; some endpoints use `unifi_name`/`note`.
+            if (alias) upsertClientName(this.db, mac, alias, "unifi_alias", now);
+            else if (note) upsertClientName(this.db, mac, note, "unifi_alias", now);
+            else if (hostname) upsertClientName(this.db, mac, hostname, "unifi_hostname", now);
+            else if (dhcpHostname) upsertClientName(this.db, mac, dhcpHostname, "unifi_hostname", now);
+          }
+        });
+        tx(list);
+      } catch (err) {
+        console.warn("[unifi] client-name cache update failed:", err instanceof Error ? err.message : err);
+      }
 
       const [events, dpi, speedtest] = await Promise.all([
         tryCall("events", () => this.client!.events()),

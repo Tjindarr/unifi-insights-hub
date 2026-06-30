@@ -495,3 +495,45 @@ export function getSnapshot<T = unknown>(db: Database.Database, table: string): 
     | undefined;
   return row ? (JSON.parse(row.json) as T) : null;
 }
+
+// ---- Persistent MAC → name cache ----------------------------------------
+
+export type ClientNameSource = "unifi_alias" | "unifi_name" | "unifi_hostname" | "dhcp";
+const NAME_PRIORITY: Record<ClientNameSource, number> = {
+  unifi_alias: 4,
+  unifi_name: 3,
+  unifi_hostname: 2,
+  dhcp: 1,
+};
+
+export function upsertClientName(
+  db: Database.Database,
+  mac: string,
+  name: string,
+  source: ClientNameSource,
+  seenAt: number = Date.now(),
+) {
+  const m = mac.trim().toLowerCase();
+  const n = name.trim();
+  if (!m || !n) return;
+  const priority = NAME_PRIORITY[source];
+  db.prepare(`
+    INSERT INTO client_name_cache (mac, name, source, priority, first_seen_at, updated_at, last_seen_at)
+    VALUES (@mac, @name, @source, @priority, @now, @now, @now)
+    ON CONFLICT(mac) DO UPDATE SET
+      name        = CASE WHEN excluded.priority >= client_name_cache.priority THEN excluded.name ELSE client_name_cache.name END,
+      source      = CASE WHEN excluded.priority >= client_name_cache.priority THEN excluded.source ELSE client_name_cache.source END,
+      priority    = CASE WHEN excluded.priority >= client_name_cache.priority THEN excluded.priority ELSE client_name_cache.priority END,
+      updated_at  = CASE WHEN excluded.priority >= client_name_cache.priority THEN excluded.updated_at ELSE client_name_cache.updated_at END,
+      last_seen_at = excluded.last_seen_at
+  `).run({ mac: m, name: n, source, priority, now: seenAt });
+}
+
+export function getAllClientNames(db: Database.Database): Array<{
+  mac: string; name: string; source: string; updatedAt: number; lastSeenAt: number;
+}> {
+  return db.prepare(
+    `SELECT mac, name, source, updated_at AS updatedAt, last_seen_at AS lastSeenAt
+       FROM client_name_cache`,
+  ).all() as Array<{ mac: string; name: string; source: string; updatedAt: number; lastSeenAt: number }>;
+}
