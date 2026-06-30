@@ -110,6 +110,10 @@ export class UnifiClient {
     }
     if (!res.ok) {
       const text = await res.text().catch(() => "");
+      if (res.status === 429) {
+        const retry = parseRetryAfter(res.headers.get("retry-after")) || 5 * 60_000;
+        throw new UnifiRateLimitError(`UniFi ${path} → 429 Too Many Requests`, retry);
+      }
       throw new Error(`UniFi ${path} → ${res.status}${text ? ` ${text.slice(0, 180)}` : ""}`);
     }
     return (await res.json()) as T;
