@@ -3,7 +3,7 @@
 
 import type Database from "better-sqlite3";
 
-import { UnifiClient, type UnifiConfig } from "./client.ts";
+import { UnifiClient, UnifiRateLimitError, type UnifiConfig } from "./client.ts";
 import { setSnapshot, upsertClientName } from "../db/queries.ts";
 
 type Status = {
@@ -13,6 +13,8 @@ type Status = {
   lastError: string | null;
   lastOk: boolean;
   optionalErrors?: Record<string, string>;
+  backoffUntil?: number | null;
+  consecutiveFailures?: number;
 };
 
 export class UnifiManager {
@@ -76,14 +78,28 @@ export class UnifiManager {
 
   private async poll() {
     if (!this.client) return;
+    // Honor active backoff window — skip the poll entirely.
+    const backoffUntil = this.status.backoffUntil ?? 0;
+    if (backoffUntil && Date.now() < backoffUntil) return;
+
     const unwrap = (x: unknown) =>
       x && typeof x === "object" && "data" in (x as Record<string, unknown>)
         ? (x as { data: unknown }).data
         : x;
     const optionalErrors: Record<string, string> = {};
+    let rateLimited: UnifiRateLimitError | null = null;
     const tryCall = async <T>(label: string, fn: () => Promise<T>): Promise<T | null> => {
+      if (rateLimited) {
+        optionalErrors[label] = "skipped (rate limited)";
+        return null;
+      }
       try { return await fn(); }
       catch (err) {
+        if (err instanceof UnifiRateLimitError) {
+          rateLimited = err;
+          optionalErrors[label] = err.message;
+          return null;
+        }
         const msg = err instanceof Error ? err.message : String(err);
         optionalErrors[label] = msg;
         console.warn(`[unifi] ${label} failed:`, msg);
@@ -111,11 +127,10 @@ export class UnifiManager {
             const c = raw as Record<string, unknown>;
             const mac = typeof c.mac === "string" ? c.mac : null;
             if (!mac) continue;
-            const alias = typeof c.name === "string" && c.name ? c.name : null; // UniFi "alias" lands in `name` from controller
+            const alias = typeof c.name === "string" && c.name ? c.name : null;
             const note = typeof c.note === "string" && c.note ? c.note : null;
             const hostname = typeof c.hostname === "string" && c.hostname ? c.hostname : null;
             const dhcpHostname = typeof c.dhcp_hostname === "string" && c.dhcp_hostname ? c.dhcp_hostname : null;
-            // UniFi REST returns alias via `name`; some endpoints use `unifi_name`/`note`.
             if (alias) upsertClientName(this.db, mac, alias, "unifi_alias", now);
             else if (note) upsertClientName(this.db, mac, note, "unifi_alias", now);
             else if (hostname) upsertClientName(this.db, mac, hostname, "unifi_hostname", now);
@@ -135,13 +150,10 @@ export class UnifiManager {
       if (events) setSnapshot(this.db, "unifi_events_snapshot", unwrap(events));
       if (dpi) setSnapshot(this.db, "unifi_dpi_snapshot", unwrap(dpi));
       if (speedtest && Array.isArray(speedtest.data)) {
-        // Always store (even empty array) so the UI doesn't keep stale rows,
-        // and so /api/_debug/raw-speedtest reflects current state.
         setSnapshot(this.db, "unifi_speedtest_snapshot", speedtest.data);
       }
 
-      // Refresh DPI catalog (id → name) at most once per hour.
-      if (Date.now() - this.catalogLastFetch > 60 * 60 * 1000) {
+      if (!rateLimited && Date.now() - this.catalogLastFetch > 60 * 60 * 1000) {
         const cat = await tryCall("dpi-catalog", () => this.client!.dpiCatalog());
         if (cat && (Object.keys(cat.apps).length > 0 || Object.keys(cat.categories).length > 0)) {
           setSnapshot(this.db, "unifi_dpi_catalog_snapshot", cat);
@@ -149,13 +161,59 @@ export class UnifiManager {
         }
       }
 
-      this.status = { ...this.status, lastPollAt: Date.now(), lastOk: true, lastError: null, optionalErrors };
+      if (rateLimited) {
+        const err = rateLimited as UnifiRateLimitError;
+        const until = Date.now() + err.retryAfterMs;
+        const fails = (this.status.consecutiveFailures ?? 0) + 1;
+        this.status = {
+          ...this.status,
+          lastPollAt: Date.now(),
+          lastOk: false,
+          lastError: err.message,
+          optionalErrors,
+          backoffUntil: until,
+          consecutiveFailures: fails,
+        };
+        console.warn(`[unifi] rate limited — backing off ${Math.round(err.retryAfterMs / 1000)}s until ${new Date(until).toISOString()}`);
+        return;
+      }
+
+      this.status = {
+        ...this.status,
+        lastPollAt: Date.now(),
+        lastOk: true,
+        lastError: null,
+        optionalErrors,
+        backoffUntil: null,
+        consecutiveFailures: 0,
+      };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.status = { ...this.status, lastPollAt: Date.now(), lastOk: false, lastError: msg, optionalErrors };
+      const fails = (this.status.consecutiveFailures ?? 0) + 1;
+      let until: number | null = null;
+      if (err instanceof UnifiRateLimitError) {
+        until = Date.now() + err.retryAfterMs;
+        console.warn(`[unifi] rate limited on auth — backing off ${Math.round(err.retryAfterMs / 1000)}s`);
+      } else {
+        // Exponential backoff on repeated hard failures: 30s, 1m, 2m, 5m max.
+        if (fails >= 3) {
+          const delay = Math.min(5 * 60_000, 30_000 * 2 ** Math.min(fails - 3, 4));
+          until = Date.now() + delay;
+        }
+      }
+      this.status = {
+        ...this.status,
+        lastPollAt: Date.now(),
+        lastOk: false,
+        lastError: msg,
+        optionalErrors,
+        backoffUntil: until,
+        consecutiveFailures: fails,
+      };
       console.error("[unifi] poll failed", msg);
     }
   }
+
 
 
   /** One-shot connectivity check using arbitrary (unsaved) credentials. */
