@@ -3,7 +3,7 @@
 
 import type Database from "better-sqlite3";
 
-import { UnifiClient, type UnifiConfig } from "./client.ts";
+import { UnifiClient, UnifiRateLimitError, type UnifiConfig } from "./client.ts";
 import { setSnapshot, upsertClientName } from "../db/queries.ts";
 
 type Status = {
@@ -13,6 +13,8 @@ type Status = {
   lastError: string | null;
   lastOk: boolean;
   optionalErrors?: Record<string, string>;
+  backoffUntil?: number | null;
+  consecutiveFailures?: number;
 };
 
 export class UnifiManager {
