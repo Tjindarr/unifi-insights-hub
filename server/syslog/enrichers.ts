@@ -3,6 +3,7 @@
 
 import type Database from "better-sqlite3";
 import type { ParsedSyslog } from "./parser.ts";
+import { upsertClientName } from "../db/queries.ts";
 
 const DEAUTH_REASONS: Record<string, string> = {
   "1": "Unspecified",
