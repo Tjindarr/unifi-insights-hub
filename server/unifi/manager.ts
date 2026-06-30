@@ -4,7 +4,7 @@
 import type Database from "better-sqlite3";
 
 import { UnifiClient, type UnifiConfig } from "./client.ts";
-import { setSnapshot } from "../db/queries.ts";
+import { setSnapshot, upsertClientName } from "../db/queries.ts";
 
 type Status = {
   enabled: boolean;
