@@ -4,6 +4,7 @@ import type { FastifyInstance } from "fastify";
 import {
   dbStats,
   firewallBuckets,
+  getAllClientNames,
   getSnapshot,
   internalEventBuckets,
   recentFirewall,
