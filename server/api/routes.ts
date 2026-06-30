@@ -321,6 +321,17 @@ export async function registerApi(
     return clientDetails(db, req.params.mac);
   });
 
+  // Persistent MAC → name cache. Always available (no UniFi connection
+  // required) so historical firewall / internal logs can resolve devices
+  // that are currently offline or no longer in the live client list.
+  app.get("/api/client-names", async () => {
+    const rows = getAllClientNames(db);
+    const map: Record<string, { name: string; source: string }> = {};
+    for (const r of rows) map[r.mac] = { name: r.name, source: r.source };
+    return { count: rows.length, names: map };
+  });
+
+
   app.get("/api/devices", async (_req, reply) => {
     if (!requireLive()) return reply.code(204).send();
     return snap("unifi_devices_snapshot") ?? [];
