@@ -76,7 +76,13 @@ export class UnifiClient {
       body: JSON.stringify({ username: this.cfg.user, password: this.cfg.password }),
       dispatcher: agent,
     });
-    if (!res.ok) throw new Error(`UniFi login failed: ${res.status} ${res.statusText}`);
+    if (!res.ok) {
+      if (res.status === 429) {
+        const retry = parseRetryAfter(res.headers.get("retry-after")) || 5 * 60_000;
+        throw new UnifiRateLimitError(`UniFi login failed: 429 Too Many Requests`, retry);
+      }
+      throw new Error(`UniFi login failed: ${res.status} ${res.statusText}`);
+    }
     const setCookies = res.headers.getSetCookie?.() ?? [];
     const cookieStr = setCookies.map((c) => c.split(";")[0]).join("; ");
     const csrf = res.headers.get("x-csrf-token") ?? undefined;
