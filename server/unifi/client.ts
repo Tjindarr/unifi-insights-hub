@@ -14,6 +14,24 @@ export type UnifiConfig = {
 
 type Cookies = { auth: string; csrf?: string };
 
+export class UnifiRateLimitError extends Error {
+  retryAfterMs: number;
+  constructor(message: string, retryAfterMs: number) {
+    super(message);
+    this.name = "UnifiRateLimitError";
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+function parseRetryAfter(h: string | null): number {
+  if (!h) return 0;
+  const n = Number(h);
+  if (Number.isFinite(n)) return Math.max(0, n) * 1000;
+  const t = Date.parse(h);
+  if (Number.isFinite(t)) return Math.max(0, t - Date.now());
+  return 0;
+}
+
 type ProbeResult = {
   label: string;
   path: string;
