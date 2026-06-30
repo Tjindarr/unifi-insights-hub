@@ -170,6 +170,12 @@ export function makeEnricherInserts(db: Database.Database) {
           hostname: e.dhcp.hostname,
           op: e.dhcp.op,
         });
+        // Persist DHCP-known hostnames so historical log rows can resolve the
+        // MAC even when the device is no longer in the UniFi live list.
+        if (e.dhcp.hostname && e.dhcp.op === "DHCPACK") {
+          try { upsertClientName(db, e.dhcp.mac, e.dhcp.hostname, "dhcp", parsed.time); }
+          catch { /* best-effort */ }
+        }
       }
       if (e.wifiAuth) {
         wifi.run({ time: parsed.time, ...e.wifiAuth });
