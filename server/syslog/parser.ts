@@ -130,7 +130,15 @@ export function parseSyslog(line: string, fallbackHost = "unknown", opts: ParseO
   }
 
   const message = rest;
+  // Zone-Based Firewall / IDS-IPS events arrive as CEF (appname === "unifi-cef")
+  // and carry zone/policy fields that plain WiFi-client CEF events never have.
+  // Match only that subset so client-connect/-disconnect CEF lines keep going
+  // through the non-firewall path instead of polluting the Firewall view.
+  const isFirewallCef =
+    appname === "unifi-cef" &&
+    /\bUNIFI(?:srcZone|dstZone|policyType|policyName)=|\bUNIFIcategory=Security\b/.test(message);
   const isFirewall =
+    isFirewallCef ||
     /\bSTA-TRACKER\b/.test(message) ||
     /\b(UFW|UBNT|FW)[\s_-]+(BLOCK|ALLOW|DENY|DROP|REJECT|ACCEPT)\b/i.test(message) ||
     // UniFi iptables rule-tag prefix, e.g. "[WAN_LOCAL-2000-D]IN=eth4 OUT= ..."

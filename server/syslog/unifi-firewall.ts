@@ -35,18 +35,79 @@ const DEAUTH_REASONS: Record<string, string> = {
   "23": "802.1X auth failed",
 };
 
+// Standard (non-UNIFI-prefixed) CEF extension keys that can show up in
+// UniFi's Zone-Based Firewall / Threat Management CEF payloads.
+const STANDARD_CEF_KEYS = [
+  "src", "dst", "spt", "dpt", "proto", "act", "app",
+  "deviceInboundInterface", "deviceOutboundInterface",
+];
+
+// Normalize the free-form CEF "act" value into the same allow/deny/reject
+// vocabulary the legacy iptables-style parser below produces.
+function normalizeCefAction(act: string | undefined, eventName: string): string {
+  const v = (act ?? eventName).toLowerCase();
+  if (/allow|permit|accept/.test(v)) return "allow";
+  if (/reject/.test(v)) return "reject";
+  if (/block|drop|deny/.test(v)) return "deny";
+  return v || "unknown";
+}
+
 export function extractFirewall(message: string, appname: string): FirewallFields {
   const result: FirewallFields = { ...EMPTY };
 
-  // UniFi CEF events (appname=unifi-cef) — "WiFi Client Connected" etc.
+  // UniFi CEF events (appname=unifi-cef) — covers two very different families:
+  //   - WiFi Client Connected/Disconnected etc. (client/roam events)
+  //   - Zone-Based Firewall traffic + IDS/IPS "Threat Detected" events
+  // These need different field mapping, so we branch on the CEF payload shape.
   if (appname === "unifi-cef" || /^CEF:\d+\|Ubiquiti/.test(message)) {
     const header = message.split("|");
     const eventName = header[5] ?? "UniFi event";
+
     const kv: Record<string, string> = {};
-    // Capture "key=value" pairs up to the next " UNIFI" / " msg=" boundary
-    const re = /\b(UNIFI[A-Za-z]+|msg)=([^=]+?)(?=\s+(?:UNIFI[A-Za-z]+|msg)=|$)/g;
+    const keyAlt = `UNIFI[A-Za-z]+|msg|${STANDARD_CEF_KEYS.join("|")}`;
+    const re = new RegExp(
+      `\\b(${keyAlt})=([^=]+?)(?=\\s+(?:${keyAlt})=|$)`,
+      "g"
+    );
     let m: RegExpExecArray | null;
     while ((m = re.exec(message)) !== null) kv[m[1]] = m[2].trim();
+
+    // Zone-Based Firewall / IDS-IPS events carry zone and/or policy info —
+    // that's the reliable signal that this is a *firewall* event, not a
+    // WiFi client event (which never has these fields).
+    const isFirewallCef =
+      kv.UNIFIsrcZone != null ||
+      kv.UNIFIdstZone != null ||
+      kv.UNIFIpolicyType != null ||
+      kv.UNIFIpolicyName != null ||
+      kv.UNIFIcategory === "Security";
+
+    if (isFirewallCef) {
+      result.rule = kv.UNIFIpolicyName || `ZBF-${kv.UNIFIpolicyType ?? "Policy"}`;
+      result.action = normalizeCefAction(kv.act, eventName);
+      result.event_type = eventName.toLowerCase().replace(/\s+/g, "_");
+      result.message_type = "UNIFI_CEF_FIREWALL";
+      result.src_ip = kv.src ?? null;
+      result.dst_ip = kv.dst ?? kv.UNIFIdstClientAlias ?? kv.UNIFIdstClientHostname ?? null;
+      result.src_port = kv.spt ? Number(kv.spt) : null;
+      result.dst_port = kv.dpt ? Number(kv.dpt) : null;
+      result.proto = kv.proto ?? null;
+      result.client_mac = (kv.UNIFIdstClientMac || kv.UNIFIdeviceMac || "").toLowerCase() || null;
+      result.reason = kv.UNIFIipsSignature || kv.msg || eventName;
+      result.raw_json = JSON.stringify({
+        srcZone: kv.UNIFIsrcZone ?? null,
+        dstZone: kv.UNIFIdstZone ?? null,
+        policyType: kv.UNIFIpolicyType ?? null,
+        policyName: kv.UNIFIpolicyName ?? null,
+        risk: kv.UNIFIrisk ?? null,
+        signature: kv.UNIFIipsSignature ?? null,
+        signatureId: kv.UNIFIipsSignatureId ?? null,
+        app: kv.app ?? null,
+      });
+      return result;
+    }
+
+    // Fall through to the original WiFi-client CEF handling.
     result.rule = "UNIFI-CEF";
     result.event_type = eventName.toLowerCase().replace(/\s+/g, "_");
     result.message_type = "UNIFI_CEF";
@@ -144,4 +205,3 @@ export function extractFirewall(message: string, appname: string): FirewallField
 
   return result;
 }
-
